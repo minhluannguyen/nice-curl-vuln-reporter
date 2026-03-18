@@ -1,0 +1,77 @@
+# curl CVE descriptor (YAML)
+# Current library prefers `cve.yaml` and consumes this schema directly.
+
+cve_id: CVE-YYYY-XXXXX
+title: curl-<short-title>
+
+curl:
+  nixpkgs_strategy: tarball
+  vulnerable:
+    nixpkgs_url: https://github.com/NixOS/nixpkgs/archive/<VULNERABLE_COMMIT>.tar.gz
+    nixpkgs_sha256: sha256:<HASH>
+    curl_version: X.Y.Z
+  patched:
+    nixpkgs_url: https://github.com/NixOS/nixpkgs/archive/<PATCHED_COMMIT>.tar.gz
+    nixpkgs_sha256: sha256:<HASH>
+    curl_version: A.B.C
+  custom_src:
+    url: https://curl.se/download/archeology/curl-X.Y.Z.tar.gz
+    hash: sha256-<BASE64_HASH>=
+    version: X.Y.Z
+    cflags: -Wno-implicit-int -Wno-implicit-function-declaration
+    disable_hardening: true
+
+vm:
+  pattern: remote
+  custom_vm: false
+  client:
+    outbound_guest_ports: [ 8080 ]
+    outbound_host_ports: [ 8080 ]
+    outbound_guest_address: 10.0.2.10
+    config_path: vm-configs/client.nix
+  attacker:
+    inbound_guest_ports: [ 8080 ]
+    inbound_host_ports: [ 8080 ]
+    config_path: vm-configs/attacker.nix
+
+  # Set `custom_vm: true` to enable custom VMs.
+  # custom_vms:
+  #   proxy:
+  #     config_path: vm-configs/proxy.nix
+  #
+  #     # Inbound (host -> guest)
+  #     inbound_guest_ports: [10801]
+  #     inbound_host_ports: [10801]
+  #
+  #     # Outbound (guest -> host)
+  #     outbound_guest_ports: [18080]
+  #     outbound_host_ports: [18080]
+  #
+  #     # Optional legacy fallback keys (map to inbound when inbound_* is absent)
+  #     # guest_ports: [10801]
+  #     # host_ports: [10801]
+
+test_script_path: ./test-scripts/test-script.py
+
+assertions:
+  - name: oom
+    params:
+      machine: client
+      command: curl attacker:8080
+      maximum_memory_bytes: 536870912
+
+meta:
+  affected_software: cURL
+  vulnerable_versions: ">= X.Y.Z and <= A.B.C"
+  fixed_in_version: A.B.C
+  disclosure_date: "YYYY-MM-DD"
+  impact:
+    - Denial of Service (DoS)
+  weakness: "CWE-XXX: <name>"
+  cvss_score: 0.0
+  severity: High
+  references:
+    nvd: https://nvd.nist.gov/vuln/detail/CVE-YYYY-XXXXX
+    advisory: https://curl.se/docs/CVE-YYYY-XXXXX.html
+    security_report: ""
+    github_exploit: ""
