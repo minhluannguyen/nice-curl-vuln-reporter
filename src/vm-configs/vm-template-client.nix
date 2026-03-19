@@ -21,15 +21,21 @@ let
   outboundHostPorts = if outboundHostPortsRaw == null then [] else normalizePorts outboundHostPortsRaw;
 
   mkCurlFromTarball = info:
-    (import (builtins.fetchTarball {
-      url = info.nixpkgs_url;
-      sha256 = info.nixpkgs_sha256;
-    }) { inherit system; }).curlFull;
+    let
+      importedPkgs = import (builtins.fetchTarball {
+        url = info.nixpkgs_url;
+        sha256 = info.nixpkgs_sha256;
+      }) { inherit system; };
+    in
+      if importedPkgs ? curlFull then importedPkgs.curlFull else importedPkgs.curl;
 
   mkCurlCustom = src:
     pkgs.stdenv.mkDerivation ({
       name = "curl-${src.version}";
-      src = builtins.fetchurl { url = src.url; hash = src.hash; };
+      src = builtins.fetchurl ({ url = src.url; } //
+        (if src ? sha256 then { sha256 = src.sha256; }
+         else if src ? hash then { sha256 = src.hash; }
+         else throw "curl.custom_src requires either sha256 or hash"));
       buildInputs = [ pkgs.zlib ];
       configureFlags = [ "--host=x86_64-pc-linux-gnu" "--without-ssl" ];
       CFLAGS = src.cflags or "";
