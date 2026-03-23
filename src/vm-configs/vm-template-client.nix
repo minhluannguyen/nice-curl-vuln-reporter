@@ -4,17 +4,21 @@
 let
   system = pkgs.stdenv.hostPlatform.system;
   configPath = if clientCfg ? config_path then caseDir + "/${clientCfg.config_path}" else null;
-  customClientConfig = if configPath != null then import configPath { inherit config pkgs lib; } else {};
+  defaultConfigPath = caseDir + "/vm-configs/client.nix";
+  effectiveConfigPath = 
+    if configPath != null && builtins.pathExists configPath then configPath
+    else if builtins.pathExists defaultConfigPath then defaultConfigPath
+    else null;
+  customClientConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
+
   normalizePorts = ports: if builtins.isList ports then ports else [ ports ];
 
   outboundGuestPortsRaw =
-    if clientCfg ? outbound_guest_ports then clientCfg.outbound_guest_ports
-    else if clientCfg ? outbound_guest_port then clientCfg.outbound_guest_port
+    if clientCfg ? networking && clientCfg.networking.outbound_guest_ports then clientCfg.networking.outbound_guest_ports
     else null;
 
   outboundHostPortsRaw =
-    if clientCfg ? outbound_host_ports then clientCfg.outbound_host_ports
-    else if clientCfg ? outbound_host_port then clientCfg.outbound_host_port
+    if clientCfg ? networking && clientCfg.networking.outbound_host_ports then clientCfg.networking.outbound_host_ports
     else null;
 
   outboundGuestPorts = if outboundGuestPortsRaw == null then [] else normalizePorts outboundGuestPortsRaw;
@@ -22,10 +26,19 @@ let
 
   mkCurlFromTarball = info:
     let
-      importedPkgs = import (builtins.fetchTarball {
-        url = info.nixpkgs_url;
-        sha256 = info.nixpkgs_sha256;
-      }) { inherit system; };
+      tarballUrl = "https://github.com/NixOS/nixpkgs/archive/${info.commit}.tar.gz";
+      tarball = if info ? sha256 && info.sha256 != null then
+        builtins.fetchTarball {
+          url = tarballUrl;
+          sha256 = info.sha256;
+        }
+      else
+         builtins.fetchTarball tarballUrl;
+      # importedPkgs = import (builtins.fetchTarball {
+      #   url = tarballUrl;
+      #   sha256 = if info ? sha256 then info.sha256 else null;
+      # }) { inherit system; };
+      importedPkgs = import tarball { inherit system; };
     in
       if importedPkgs ? curlFull then importedPkgs.curlFull else importedPkgs.curl;
 

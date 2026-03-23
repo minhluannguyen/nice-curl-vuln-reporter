@@ -3,7 +3,12 @@
 
 let
   configPath = if attackerCfg ? config_path then caseDir + "/${attackerCfg.config_path}" else null;
-  customAttackerConfig = if configPath != null then import configPath { inherit config pkgs lib; } else {};
+  defaultConfigPath = caseDir + "/vm-configs/attacker.nix";
+  effectiveConfigPath = 
+    if configPath != null && builtins.pathExists configPath then configPath
+    else if builtins.pathExists defaultConfigPath then defaultConfigPath
+    else null;
+  customAttackerConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
   
   normalizePorts = ports: if builtins.isList ports then ports else [ ports ];
 

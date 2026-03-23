@@ -1,77 +1,76 @@
 # curl CVE descriptor (YAML)
-# Current library prefers `cve.yaml` and consumes this schema directly.
 
 cve_id: CVE-YYYY-XXXXX
 title: curl-<short-title>
 
+# curl package source and version
+# There are two supported ways to install curl:
+# 1) Fetch from nixpkgs: provide curl versions and let the library find the corresponding nixpkgs commits
+# 2) Package from source: provide input for building curl from source
+# target specifies which curl package to use (tool or library)
 curl:
-  nixpkgs_strategy: tarball
+  strategy: nixpkgs
+  target: tool
   vulnerable:
-    nixpkgs_url: https://github.com/NixOS/nixpkgs/archive/<VULNERABLE_COMMIT>.tar.gz
-    nixpkgs_sha256: sha256:<HASH>
-    curl_version: X.Y.Z
-  patched:
-    nixpkgs_url: https://github.com/NixOS/nixpkgs/archive/<PATCHED_COMMIT>.tar.gz
-    nixpkgs_sha256: sha256:<HASH>
-    curl_version: A.B.C
-  custom_src:
-    url: https://curl.se/download/archeology/curl-X.Y.Z.tar.gz
-    hash: sha256-<BASE64_HASH>=
     version: X.Y.Z
-    cflags: -Wno-implicit-int -Wno-implicit-function-declaration
-    disable_hardening: true
+    # For nixpkgs strategy
+    commit: <VULNERABLE_COMMIT_HASH>
+    sha256: sha256-<BASE64_HASH>
+    # For build from source strategy - Under development, not currently supported
+    # url: https://curl.se/download/archeology/curl-X.Y.Z.tar.gz
+    # hash: sha256-<BASE64_HASH>=
+    # cflags: -Wno-implicit-int -Wno-implicit-function-declaration
+    # disable_hardening: true
 
+# VM configurations for VM machines.
+# config_path options by default point to `./vm-configs/<machine>.nix`, but can be customized.
 vm:
-  pattern: remote
-  custom_vm: false
+  # Pattern types:
+  # - remote: separate client and attacker VMs, communicate over network
+  # - local: exploitation occurs within a single VM
+  # - other: fully custom VM setup defined by user
+  attack_pattern: remote
   client:
-    outbound_guest_ports: [ 8080 ]
-    outbound_host_ports: [ 8080 ]
-    outbound_guest_address: 10.0.2.10
-    config_path: vm-configs/client.nix
+    networking:
+      outbound_guest_ports: [ 8080 ]
+      outbound_host_ports: [ 8080 ]
+      outbound_guest_address: 10.0.2.10
+    # config_path: ./vm-configs/client.nix
   attacker:
-    inbound_guest_ports: [ 8080 ]
-    inbound_host_ports: [ 8080 ]
-    config_path: vm-configs/attacker.nix
-
-  # Set `custom_vm: true` to enable custom VMs.
+    networking:
+      inbound_guest_ports: [ 8080 ]
+      inbound_host_ports: [ 8080 ]
+    # config_path: ./vm-configs/attacker.nix
   # custom_vms:
   #   proxy:
-  #     config_path: vm-configs/proxy.nix
-  #
-  #     # Inbound (host -> guest)
-  #     inbound_guest_ports: [10801]
-  #     inbound_host_ports: [10801]
-  #
-  #     # Outbound (guest -> host)
-  #     outbound_guest_ports: [18080]
-  #     outbound_host_ports: [18080]
-  #
-  #     # Optional legacy fallback keys (map to inbound when inbound_* is absent)
-  #     # guest_ports: [10801]
-  #     # host_ports: [10801]
+  #     config_path: ./vm-configs/proxy.nix
+  #     networking:
+          # # Inbound (host -> guest)
+          # inbound_guest_ports: [10801]
+          # inbound_host_ports: [10801]
+      
+          # # Outbound (guest -> host)
+          # outbound_guest_ports: [18080]
+          # outbound_host_ports: [18080]
 
-test_script_path: ./test-scripts/test-script.py
+# Defaults to `./test-script.py` if not specified.
+# test_script_path: ./test-scripts/test-script.py
 
+# Assertions to validate the exploit. Each assertion has a name and parameters.
 assertions:
-  - name: oom
-    params:
-      machine: client
-      command: curl attacker:8080
-      maximum_memory_bytes: 536870912
+  # - name: oom
+  #   params:
+  #     machine: client
+  #     command: curl attacker:8080
+  #     maximum_memory_bytes: 536870912
 
+# Metadata for CVE report
 meta:
   affected_software: cURL
   vulnerable_versions: ">= X.Y.Z and <= A.B.C"
-  fixed_in_version: A.B.C
   disclosure_date: "YYYY-MM-DD"
   impact:
-    - Denial of Service (DoS)
-  weakness: "CWE-XXX: <name>"
-  cvss_score: 0.0
-  severity: High
+    - 
+  weakness: 
+  severity: 
   references:
-    nvd: https://nvd.nist.gov/vuln/detail/CVE-YYYY-XXXXX
-    advisory: https://curl.se/docs/CVE-YYYY-XXXXX.html
-    security_report: ""
-    github_exploit: ""
