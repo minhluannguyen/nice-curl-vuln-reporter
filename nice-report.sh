@@ -5,21 +5,21 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXAMPLES_DIR="$SCRIPT_DIR/examples"
+REPORT_DIR="$SCRIPT_DIR/reports"
 TEMPLATE_DIR="$SCRIPT_DIR/template"
 
 # Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'
+NC=$'\033[0m' # No Color
 
 # Print colored messages
-info() { echo -e "${BLUE}ℹ${NC} $*"; }
+info() { echo -e "${BLUE}ℹ️${NC} $*"; }
 success() { echo -e "${GREEN}✅${NC} $*"; }
 error() { echo -e "${RED}❌${NC} $*"; exit 1; }
-warning() { echo -e "${YELLOW}⚠${NC} $*"; }
+warning() { echo -e "${YELLOW}⚠️${NC} $*"; }
 
 # Prompt user for input with default value
 prompt() {
@@ -28,10 +28,10 @@ prompt() {
     local input
     
     if [[ -n "$default" ]]; then
-        read -p "$(echo -e ${BLUE})${prompt}${NC} [${default}]: " input
+        read -p "${BLUE}${prompt}${NC} [${default}]: " input
         echo "${input:-$default}"
     else
-        read -p "$(echo -e ${BLUE})${prompt}${NC}: " input
+        read -p "${BLUE}${prompt}${NC}: " input
         if [[ -z "$input" ]]; then
             error "Input cannot be empty"
         fi
@@ -60,24 +60,24 @@ select_menu() {
 
 show_main_menu() {
     echo ""
-    echo -e "${BLUE}╔═══════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║   A NICE cURL vulnerability reporter      ║${NC}"
-    echo -e "${BLUE}╚═══════════════════════════════════════════╝${NC}"
+    echo -e "${BLUE}╔═════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║            A NICE cURL vulnerability reporter           ║${NC}"
+    echo -e "${BLUE}╚═════════════════════════════════════════════════════════╝${NC}"
     echo ""
     
     local choice
     choice=$(select_menu "What would you like to do?" \
-        "Create new CVE case" \
-        "Setup tarball hashes" \
-        "Run tests" \
+        "Create new security report" \
+        "Update hashes for existing report" \
         "Manage VMs" \
+        "Run tests" \
         "Exit")
     
     case "$choice" in
-        "Create new CVE case") create_cve_case ;;
-        "Setup tarball hashes") setup_tarball_hashes ;;
-        "Run tests") run_tests ;;
+        "Create new security report") create_security_report ;;
+        "Update hashes for existing report") update_hashes ;;
         "Manage VMs") manage_vms ;;
+        "Run tests") run_tests ;;
         "Exit") exit 0 ;;
         *) error "Invalid choice" ;;
     esac
@@ -119,17 +119,16 @@ fetch_commit_for_version() {
     
     info "Resolving curl $curl_version to nixpkgs commit..." >&2
     
-    # Get current nixpkgs master commit
-    if [[ "$curl_version" == "latest" ]]; then
-        info "  Trying GitHub API for master..." >&2
-        commit=$(curl -s --max-time 3 "https://api.github.com/repos/NixOS/nixpkgs/commits?per_page=1&sha=master" 2>/dev/null \
-            | grep -o '"sha":"[^"]*"' | head -1 | cut -d'"' -f4)
-        
-        if [[ -n "$commit" ]]; then
-            success "  ✓ Found via GitHub (master): ${commit:0:8}..." >&2
-            echo "$commit"
-            return 0
-        fi
+    # Get latest nixpkgs master commit
+    info "  Fetching latest nixpkgs commit..." >&2
+    local commit
+    commit=$(curl -s --max-time 3 "https://api.github.com/repos/NixOS/nixpkgs/commits?per_page=1&sha=master" 2>/dev/null \
+        | grep '"sha"' | head -1 | grep -o '[a-f0-9]\{40\}')
+    
+    if [[ -n "$commit" ]]; then
+        success "  ✓ Found latest commit: ${commit:0:8}..." >&2
+        echo "$commit"
+        return 0
     fi
 
     # Lazamar
@@ -145,7 +144,6 @@ fetch_commit_for_version() {
         echo "$commit"
         return 0
     fi
-    
     
     # Last resort: ask user to provide commit manually
     warning "Could not automatically resolve curl $curl_version" >&2
@@ -165,11 +163,11 @@ fetch_commit_for_version() {
 }
 
 # ============================================================================
-# Create New CVE Case
+# Create New Security Report
 # ============================================================================
 
-create_cve_case() {
-    info "Creating new CVE case..."
+create_security_report() {
+    info "Creating new security report..."
     echo ""
     
     # Get CVE info
@@ -226,7 +224,7 @@ create_cve_case() {
         case_name="${cve_id}-${title}"
     fi 
     
-    local case_dir="$EXAMPLES_DIR/$case_name"
+    local case_dir="$REPORT_DIR/$case_name"
     
     if [[ -d "$case_dir" ]]; then
         error "Case directory already exists: $case_dir"
@@ -263,6 +261,10 @@ create_cve_case() {
     content="${content//remote/$attack_pattern}"
     content="${content//tool/$target}"
     
+    # Remove only indented comments (those with leading whitespace before #)
+    # Keep top-level comments (no leading whitespace before #)
+    content=$(echo "$content" | sed '/^[[:space:]]\+#/d')
+    
     # Write back to file
     printf '%s\n' "$content" > "$case_dir/cve.yaml"
     
@@ -276,52 +278,60 @@ create_cve_case() {
     success "CVE case created: $case_dir"
     echo ""
     
-    # Ask if user wants to setup tarballs now
-    read -p "$(echo -e ${BLUE})Setup tarball hashes now?${NC} (y/n): " setup_now
-    if [[ "$setup_now" == "y" || "$setup_now" == "Y" ]]; then
-        setup_single_tarball "$case_dir"
-    fi
-    
     show_main_menu
 }
 
 # ============================================================================
-# Setup Tarball Hashes
+# Update Hashes for Existing Cases
 # ============================================================================
 
-setup_tarball_hashes() {
-    info "Setup tarball hashes for existing cases..."
+update_hashes() {
+    info "Updating hashes for existing cases..."
     echo ""
     
     # List available cases
     local cases=()
-    if [[ -d "$EXAMPLES_DIR" ]]; then
+    if [[ -d "$REPORT_DIR" ]]; then
         while IFS= read -r -d '' case_dir; do
             cases+=("$(basename "$case_dir")")
-        done < <(find "$EXAMPLES_DIR" -maxdepth 1 -type d ! -name "examples" -print0)
+        done < <(find "$REPORT_DIR" -maxdepth 1 -type d ! -name "reports" -print0 | sort -z)
     fi
     
     if [[ ${#cases[@]} -eq 0 ]]; then
-        error "No CVE cases found in $EXAMPLES_DIR"
+        error "No CVE cases found in $REPORT_DIR"
     fi
     
     cases+=("Cancel")
     
     local selected
-    selected=$(select_menu "Select CVE case:" "${cases[@]}")
+    selected=$(select_menu "Select security report:" "${cases[@]}")
     
     if [[ "$selected" == "Cancel" ]]; then
         show_main_menu
         return
     fi
     
-    local case_dir="$EXAMPLES_DIR/$selected"
-    setup_single_tarball "$case_dir"
+    local case_dir="$REPORT_DIR/$selected"
+    update_single_hash "$case_dir"
     
     show_main_menu
 }
 
-setup_single_tarball() {
+compute_hash() {
+    local commit="$1"
+    local ref="github:NixOS/nixpkgs/${commit}"
+    
+    local hash
+    hash=$(nix flake prefetch "$ref" --json 2>/dev/null | grep -o '"hash":"[^"]*"' | cut -d'"' -f4)
+    
+    if [[ -z "$hash" ]]; then
+        error "Failed to compute hash for $ref"
+    fi
+    
+    echo "$hash"
+}
+
+update_single_hash() {
     local case_dir="$1"
     local cve_yaml="$case_dir/cve.yaml"
     
@@ -336,45 +346,30 @@ setup_single_tarball() {
     local vuln_commit
     vuln_commit=$(grep -A 2 "vulnerable:" "$cve_yaml" | grep "commit:" | sed 's/.*commit: *//' | tr -d ' ')
     
-    local patch_commit
-    patch_commit=$(grep -A 10 "patched:" "$cve_yaml" | grep "commit:" | sed 's/.*commit: *//' | tr -d ' ')
-    
-    if [[ -z "$vuln_commit" || -z "$patch_commit" ]]; then
+    if [[ -z "$vuln_commit" ]]; then
         error "Could not extract commit hashes from $cve_yaml"
     fi
+
+    # Check if sha256 hashes fields exist, if not, we will add them
+    if grep -q "sha256:" "$cve_yaml"; then
+        warning "Existing sha256 fields found in $cve_yaml, they will be updated"
+    else
+        warning "No sha256 fields found in $cve_yaml, they will be added"
+        # Add placeholder sha256 fields after the commit lines
+        sed -i "/commit: $vuln_commit/a\    sha256: <BASE64_HASH>" "$cve_yaml"
+    fi
     
-    # Compute hashes using nix flake prefetch
-    compute_hash() {
-        local commit="$1"
-        local ref="github:NixOS/nixpkgs/${commit}"
-        
-        info "Computing hash for commit: $commit"
-        
-        local hash
-        hash=$(nix flake prefetch "$ref" --json 2>/dev/null | grep -o '"hash":"[^"]*"' | cut -d'"' -f4)
-        
-        if [[ -z "$hash" ]]; then
-            error "Failed to compute hash for $ref"
-        fi
-        
-        echo "$hash"
-    }
-    
-    warning "This requires fetching from GitHub..."
     info "Computing vulnerable version hash..."
     local vuln_hash
     vuln_hash=$(compute_hash "$vuln_commit")
     success "Vulnerable hash: $vuln_hash"
     
-    info "Computing patched version hash..."
-    local patch_hash
-    patch_hash=$(compute_hash "$patch_commit")
-    success "Patched hash: $patch_hash"
-    
-    # Update cve.yaml using sed
+    # Update cve.yaml using sed to replace whatever after "sha256:" with the new hash
     info "Updating cve.yaml with hashes..."
-    sed -i "s/commit: $vuln_commit$/commit: $vuln_commit\n    sha256: $vuln_hash/" "$cve_yaml"
-    sed -i "s/commit: $patch_commit$/commit: $patch_commit\n    sha256: $patch_hash/" "$cve_yaml"
+    # Escape special characters in hash for use in sed replacement
+    local escaped_hash
+    escaped_hash=$(printf '%s\n' "$vuln_hash" | sed -e 's/[\/&]/\\&/g')
+    sed -i "s/sha256: .*/sha256: ${escaped_hash}/" "$cve_yaml"
     
     success "Tarball hashes saved to cve.yaml"
     echo ""
@@ -390,12 +385,12 @@ run_tests() {
     
     # List available cases
     local cases=()
-    if [[ -d "$EXAMPLES_DIR" ]]; then
+    if [[ -d "$REPORT_DIR" ]]; then
         while IFS= read -r -d '' case_dir; do
             if [[ -f "$case_dir/cve.yaml" ]]; then
                 cases+=("$(basename "$case_dir")")
             fi
-        done < <(find "$EXAMPLES_DIR" -maxdepth 1 -type d ! -name "examples" -print0)
+        done < <(find "$REPORT_DIR" -maxdepth 1 -type d ! -name "reports" -print0 | sort -z)
     fi
     
     if [[ ${#cases[@]} -eq 0 ]]; then
@@ -415,7 +410,7 @@ run_tests() {
     if [[ "$selected" == "All cases" ]]; then
         run_all_tests
     else
-        local case_dir="$EXAMPLES_DIR/$selected"
+        local case_dir="$REPORT_DIR/$selected"
         run_single_test "$case_dir"
     fi
     
@@ -428,27 +423,10 @@ run_single_test() {
     
     info "Testing: $case_name"
     echo ""
-    
-    local test_type
-    test_type=$(select_menu "Select test type:" \
-        "Vulnerable (testVulnerableTrue)" \
-        "Patched (testVulnerableFalse)" \
-        "Both")
-    
+
     cd "$case_dir"
     
-    case "$test_type" in
-        "Vulnerable (testVulnerableTrue)")
-            run_test_target "$case_dir" "testVulnerableTrue"
-            ;;
-        "Patched (testVulnerableFalse)")
-            run_test_target "$case_dir" "testVulnerableFalse"
-            ;;
-        "Both")
-            run_test_target "$case_dir" "testVulnerableTrue"
-            run_test_target "$case_dir" "testVulnerableFalse"
-            ;;
-    esac
+    run_test_target "$case_dir" "testVulnerableTrue"
     
     cd "$SCRIPT_DIR"
     echo ""
@@ -458,10 +436,10 @@ run_test_target() {
     local case_dir="$1"
     local target="$2"
     
-    info "Running: nix build .#$target"
+    info "Running: nix run .#$target".driver
     echo ""
     
-    if cd "$case_dir" && nix build ".#$target" 2>&1; then
+    if cd "$case_dir" && nix run ".#$target".driver 2>&1; then
         success "Test passed: $target"
     else
         error "Test failed: $target"
@@ -491,7 +469,7 @@ run_all_tests() {
             
             cd "$SCRIPT_DIR"
         fi
-    done < <(find "$EXAMPLES_DIR" -maxdepth 1 -type d ! -name "examples" -print0)
+    done < <(find "$REPORT_DIR" -maxdepth 1 -type d ! -name "reports" -print0 | sort -z)
     
     echo ""
     echo -e "${BLUE}═════════════════════════════════════════${NC}"
@@ -508,54 +486,109 @@ manage_vms() {
     info "Manage VMs for CVE cases..."
     echo ""
     
-    local action
-    action=$(select_menu "Select action:" \
-        "List available VMs" \
-        "Start VM" \
-        "Stop VM" \
-        "SSH into VM" \
-        "Back to main menu")
+    list_available_reports
     
-    case "$action" in
-        "List available VMs")
-            info "Available VMs for cases:"
-            echo "  - client"
-            echo "  - attacker"
-            echo "  - proxy (if custom_vm enabled)"
-            ;;
-        "Start VM")
-            start_vm_interactive
-            ;;
-        "Stop VM")
-            stop_vm_interactive
-            ;;
-        "SSH into VM")
-            ssh_vm_interactive
-            ;;
-        "Back to main menu")
-            :
-            ;;
-    esac
-    
+    cd "$SCRIPT_DIR"
     show_main_menu
 }
 
+show_vm_actions() {
+    local report_dir="$1"
+    local action
+    action=$(select_menu "Select VM action:" \
+        "Start VM" \
+        "Back to main menu")
+
+    case "$action" in
+        "Start VM")
+            start_vm_interactive "$report_dir"
+            ;;
+        "Back to main menu")
+            return
+            ;;
+        *) error "Invalid choice" ;;
+    esac
+}
+
+list_available_reports() {
+    info "Select report..."
+
+    # List available cases
+    local cases=()
+    if [[ -d "$REPORT_DIR" ]]; then
+        while IFS= read -r -d '' case_dir; do
+            if [[ -f "$case_dir/cve.yaml" ]]; then
+                cases+=("$(basename "$case_dir")")
+            fi
+        done < <(find "$REPORT_DIR" -maxdepth 1 -type d ! -name "reports" -print0 | sort -z)
+    fi
+
+    if [[ ${#cases[@]} -eq 0 ]]; then
+        error "No valid reports found in $REPORT_DIR"
+    fi
+    
+    local selected
+    selected=$(select_menu "Select report to view VMs:" "${cases[@]}" "Cancel")
+    
+    if [[ "$selected" == "Cancel" ]]; then
+        return
+    fi
+    
+    local case_dir="$REPORT_DIR/$selected"
+
+    show_vm_actions "$case_dir"
+}
+
 start_vm_interactive() {
-    warning "VM management requires manual nix configuration"
-    info "To start VMs for a case, use:"
-    echo ""
-    echo "  cd examples/cve-XXXX && nix flake show"
-    echo "  nix build .#vmClient.system.x86_64-linux"
-    echo ""
-}
+    local case_dir="$1"
+    
+    info "Fetching available VMs ..."
+    warning "To exit the VM console, press Ctrl+A followed by X"
+    
+    bash $SCRIPT_DIR/cleanup-script.sh || true
+    cd "$case_dir"
 
-stop_vm_interactive() {
-    warning "Use your system tools to stop VMs (e.g., pkill qemu-system)"
-}
-
-ssh_vm_interactive() {
-    warning "VM SSH access depends on test configuration"
-    info "Check cve.yaml networking settings for VM ports and addresses"
+    # Extract VM names from flake outputs
+    local vm_list=()
+    if [[ -f "flake.nix" ]]; then
+        # Extract top-level vm keys (e.g., vmAttacker, vmClient)
+        # Use nix flake show --json for reliable parsing
+        local flake_json
+        flake_json=$(nix flake show --json 2>/dev/null || true)
+        
+        while IFS= read -r name; do
+            if [[ "$name" =~ ^vm && "$name" != "vmCustom" ]]; then
+                vm_list+=("$name")
+            fi
+        done < <(echo "$flake_json" | grep -o '"vm[^"]*"' | sed 's/"//g' | sort | uniq)
+        
+        # Extract vmCustom children using nix eval
+        # vmCustom contains a set of VMs that can be customized
+        if nix eval ".#vmCustom" --json 2>/dev/null | grep -q '{'; then
+            while IFS= read -r child_name; do
+                if [[ -n "$child_name" ]]; then
+                    vm_list+=("vmCustom.$child_name")
+                fi
+            done < <(nix eval ".#vmCustom" --json 2>/dev/null | grep -o '"[^"]*":' | sed 's/"//g' | sed 's/:$//')
+        fi
+    fi
+    
+    if [[ ${#vm_list[@]} -eq 0 ]]; then
+        warning "No VMs found in this case. Please check your flake.nix configuration."
+        return
+    fi
+    
+    vm_list+=("Cancel")
+    
+    local vm_choice
+    vm_choice=$(select_menu "Select VM to start:" "${vm_list[@]}")
+    
+    if [[ "$vm_choice" == "Cancel" ]]; then
+        return
+    fi
+    
+    info "Starting VM: $vm_choice"
+    nix run ".#$vm_choice"
 }
 
 # ============================================================================
@@ -563,8 +596,8 @@ ssh_vm_interactive() {
 # ============================================================================
 
 main() {
-    if [[ ! -d "$EXAMPLES_DIR" ]]; then
-        error "Examples directory not found: $EXAMPLES_DIR"
+    if [[ ! -d "$REPORT_DIR" ]]; then
+        error "reports directory not found: $REPORT_DIR"
     fi
     
     if [[ ! -d "$TEMPLATE_DIR" ]]; then

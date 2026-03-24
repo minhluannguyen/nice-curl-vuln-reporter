@@ -14,11 +14,11 @@ let
   normalizePorts = ports: if builtins.isList ports then ports else [ ports ];
 
   outboundGuestPortsRaw =
-    if clientCfg ? networking && clientCfg.networking.outbound_guest_ports then clientCfg.networking.outbound_guest_ports
+    if clientCfg ? networking && clientCfg.networking ? outbound_guest_ports then clientCfg.networking.outbound_guest_ports
     else null;
 
   outboundHostPortsRaw =
-    if clientCfg ? networking && clientCfg.networking.outbound_host_ports then clientCfg.networking.outbound_host_ports
+    if clientCfg ? networking && clientCfg.networking ? outbound_host_ports then clientCfg.networking.outbound_host_ports
     else null;
 
   outboundGuestPorts = if outboundGuestPortsRaw == null then [] else normalizePorts outboundGuestPortsRaw;
@@ -33,11 +33,8 @@ let
           sha256 = info.sha256;
         }
       else
-         builtins.fetchTarball tarballUrl;
-      # importedPkgs = import (builtins.fetchTarball {
-      #   url = tarballUrl;
-      #   sha256 = if info ? sha256 then info.sha256 else null;
-      # }) { inherit system; };
+        # In --impure mode
+        builtins.fetchTarball tarballUrl;
       importedPkgs = import tarball { inherit system; };
     in
       if importedPkgs ? curlFull then importedPkgs.curlFull else importedPkgs.curl;

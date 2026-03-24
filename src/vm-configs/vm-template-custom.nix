@@ -3,27 +3,28 @@
 
 let
   configPath = if customMachineCfg ? config_path then caseDir + "/${customMachineCfg.config_path}" else null;
-  customMachineConfig = if configPath != null then import configPath { inherit config pkgs lib; } else {};
+  defaultConfigPath = caseDir + "/vm-configs/${hostname}.nix";
+  effectiveConfigPath = 
+    if configPath != null && builtins.pathExists configPath then configPath
+    else if builtins.pathExists defaultConfigPath then defaultConfigPath
+    else null;
+  customMachineConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
   normalizePorts = ports: if builtins.isList ports then ports else [ ports ];
 
   outboundGuestPortsRaw =
-    if customMachineCfg ? outbound_guest_ports then customMachineCfg.outbound_guest_ports
-    else if customMachineCfg ? outbound_guest_port then customMachineCfg.outbound_guest_port
+    if customMachineCfg ? networking && customMachineCfg.networking ? outbound_guest_ports then customMachineCfg.networking.outbound_guest_ports
     else null;
 
   outboundHostPortsRaw =
-    if customMachineCfg ? outbound_host_ports then customMachineCfg.outbound_host_ports
-    else if customMachineCfg ? outbound_host_port then customMachineCfg.outbound_host_port
+    if customMachineCfg ? networking && customMachineCfg.networking ? outbound_host_ports then customMachineCfg.networking.outbound_host_ports
     else null;
 
   inboundGuestPortsRaw =
-    if customMachineCfg ? inbound_guest_ports then customMachineCfg.inbound_guest_ports
-    else if customMachineCfg ? inbound_guest_port then customMachineCfg.inbound_guest_port 
+    if customMachineCfg ? networking && customMachineCfg.networking ? inbound_guest_ports then customMachineCfg.networking.inbound_guest_ports
     else null;
 
   inboundHostPortsRaw =
-    if customMachineCfg ? inbound_host_ports then customMachineCfg.inbound_host_ports
-    else if customMachineCfg ? inbound_host_port then customMachineCfg.inbound_host_port
+    if customMachineCfg ? networking && customMachineCfg.networking ? inbound_host_ports then customMachineCfg.networking.inbound_host_ports
     else null;
 
   outboundGuestPorts = if outboundGuestPortsRaw == null then [] else normalizePorts outboundGuestPortsRaw;

@@ -2,6 +2,7 @@
 { config, pkgs, lib, modulesPath, ... }:
 
 let
+  # Additional configuration layers for the attacker VM, added by the user
   configPath = if attackerCfg ? config_path then caseDir + "/${attackerCfg.config_path}" else null;
   defaultConfigPath = caseDir + "/vm-configs/attacker.nix";
   effectiveConfigPath = 
@@ -10,16 +11,15 @@ let
     else null;
   customAttackerConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
   
+  # Network port configuration
   normalizePorts = ports: if builtins.isList ports then ports else [ ports ];
 
   inboundGuestPortsRaw =
-    if attackerCfg ? inbound_guest_ports then attackerCfg.inbound_guest_ports
-    else if attackerCfg ? inbound_guest_port then attackerCfg.inbound_guest_port
+    if attackerCfg ? networking && attackerCfg.networking ? inbound_guest_ports then attackerCfg.networking.inbound_guest_ports
     else null;
 
   inboundHostPortsRaw =
-    if attackerCfg ? inbound_host_ports then attackerCfg.inbound_host_ports
-    else if attackerCfg ? inbound_host_port then attackerCfg.inbound_host_port
+    if attackerCfg ? networking && attackerCfg.networking ? inbound_host_ports then attackerCfg.networking.inbound_host_ports
     else null;
 
   inboundGuestPorts = if inboundGuestPortsRaw == null then [] else normalizePorts inboundGuestPortsRaw;
