@@ -41,6 +41,14 @@ vm:
     networking:
       inbound_guest_ports: [ 8080 ]
       inbound_host_ports: [ 8080 ]
+    server:
+      file_path: ./exploit/server
+      language: c
+      build_config:
+        build_inputs: gcc            
+        build_commands: gcc -o server server.c
+        build_output: server
+      run_command: ./server
     # config_path: ./vm-configs/attacker.nix
   # custom_vms:
   #   proxy:
@@ -56,6 +64,39 @@ vm:
 
 # Defaults to `./test-script.py` if not specified.
 # test_script_path: ./test-scripts/test-script.py
+test_script:
+  - run:
+    machine: client
+    command: curl http://attacker:8080
+    timeout: 60
+  - wait:
+      machine: attacker
+      type: port
+      port: 8080
+  - wait:
+      machine: attacker
+      type: service  # or 'unit'
+      service_name: serverService.service
+  - wait:
+      machine: client
+      type: file
+      path: /tmp/result.txt
+  - wait:
+      machine: client
+      type: command
+      command: test -f /tmp/ready
+      timeout: 90
+  - assert:
+      type: check-memory-usage-high
+      machine: client
+      command: curl http://attacker:8080
+      maximum_memory_bytes: 536870912
+  - assert:
+      type: check-file-contains
+      machine: client
+      file_path: /var/log/server.log
+      content: "Error occurred"
+
 
 # Assertions to validate the exploit. Each assertion has a name and parameters.
 assertions:

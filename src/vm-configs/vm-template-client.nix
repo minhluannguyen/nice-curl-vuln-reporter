@@ -34,7 +34,11 @@ let
         }
       else
         # In --impure mode
-        builtins.fetchTarball tarballUrl;
+        # builtins.fetchTarball tarballUrl;
+        builtins.fetchTarball {
+          url = tarballUrl;
+          sha256 = "";
+        };
       importedPkgs = import tarball { inherit system; };
     in
       if importedPkgs ? curlFull then importedPkgs.curlFull else importedPkgs.curl;
@@ -54,14 +58,16 @@ let
     });
 
   curlVulnerable =
-    if curlCfg.nixpkgs_strategy == "tarball"
+    if curlCfg.strategy == "nixpkgs"
     then mkCurlFromTarball curlCfg.vulnerable
-    else mkCurlCustom curlCfg.custom_src;
+    else if curlCfg.strategy == "custom" && curlCfg.custom_src != null
+    then mkCurlCustom curlCfg.custom_src
+    else throw "Invalid curl configuration strategy or missing custom_src for custom strategy";
 
-  curlPatched =
-    if curlCfg.nixpkgs_strategy == "tarball"
-    then mkCurlFromTarball curlCfg.patched
-    else pkgs.curlFull;
+  # curlPatched =
+  #   if curlCfg.strategy == "nixpkgs"
+  #   then mkCurlFromTarball curlCfg.patched
+  #   else pkgs.curlFull;
 in
   (import ./vm-template-instance.nix {
     inherit isTest;
@@ -81,7 +87,9 @@ in
               host.port = builtins.elemAt outboundHostPorts index;
             })
             (builtins.length outboundGuestPorts);
-      environment.systemPackages = [ pkgs.code ] ++ (if isVulnerable then [ curlVulnerable ] else [ curlPatched ]);
+      environment.systemPackages = [ pkgs.code ] 
+      ++ ([ curlVulnerable ]);
+      # ++ (if isVulnerable then [ curlVulnerable ] else [ curlPatched ]);
     };
       hostName = "client";
     customConfig = customClientConfig;

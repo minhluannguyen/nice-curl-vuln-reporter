@@ -24,6 +24,43 @@ let
 
   inboundGuestPorts = if inboundGuestPortsRaw == null then [] else normalizePorts inboundGuestPortsRaw;
   inboundHostPorts = if inboundHostPortsRaw == null then [] else normalizePorts inboundHostPortsRaw;
+
+  # Server configuration for the attacker VM
+  hasServerConfig = attackerCfg ? server;
+  serverCfg = if hasServerConfig then attackerCfg.server else {};
+  
+  serverFilePath = if serverCfg ? file_path then caseDir + "/${serverCfg.file_path}" else caseDir + "/exploit/server";
+  
+  serverFiles = pkgs.runCommand "server-files" { } ''
+    mkdir -p $out
+    cp -r ${serverFilePath} $out/exploit
+  '';
+
+  serverDerivation = if serverCfg ? build_config && serverCfg.language == "c" then
+    pkgs.stdenv.mkDerivation {
+      name = "malicious-server";
+      version = "1.0";
+      src = serverFiles + "/exploit";
+      nativeBuildInputs = if serverCfg.build_config ? build_inputs && (serverCfg.build_config.build_inputs == "gcc") then [ pkgs.gcc ] else [];
+      
+      buildPhase = if serverCfg.build_config ? build_commands then serverCfg.build_config.build_commands else null;
+
+      installPhase = ''
+        mkdir -p $out/exploit
+        cp ${if serverCfg.build_config ? build_output then serverCfg.build_config.build_output else "server"} $out/exploit/
+      '';
+    }
+  else null;
+
+  startServerScript = if hasServerConfig && serverCfg ? run_command then
+    pkgs.writeScriptBin "start-server" ''
+    #!${pkgs.bash}/bin/bash
+    ${if serverCfg ? run_command then 
+        if serverCfg.language == "c" then "cd ${serverDerivation}/exploit && ./${serverCfg.run_command}" else
+          if serverCfg.language == "python" then "cd ${serverFiles}/exploit && ${pkgs.python3}/bin/${serverCfg.run_command}" else ""
+    else ""} 
+    ''
+  else null;
 in
   (import ./vm-template-instance.nix {
     inherit isTest;
@@ -43,6 +80,19 @@ in
             })
             (builtins.length inboundGuestPorts);
       networking.firewall.allowedTCPPorts = inboundGuestPorts;
+
+      environment.systemPackages = with pkgs;[ python3 gcc ] ++ (if hasServerConfig then [ startServerScript ] else []);
+
+      systemd.services = if hasServerConfig then {
+        maliciousServer = {
+          description = "Malicious Server";
+          wantedBy = [ "multi-user.target" ];
+          path = [ startServerScript ];
+          script = ''
+            start-server 2>&1
+          '';
+        };
+      } else {};
     };
     customConfig = customAttackerConfig;
   }) { inherit config pkgs lib modulesPath; }

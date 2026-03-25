@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# CVE Case Setup CLI Tool
-# Interactive tool to create new CVE cases, setup tarballs, and run tests
+# A reproducible security report generator for cURL vulnerabilities, built with Nix
+# Interactive tool to create new report cases, run tests, and manage VMs
 
 set -euo pipefail
 
@@ -44,8 +44,7 @@ select_menu() {
     local prompt="$1"
     shift
     local options=("$@")
-    local ps3="$(echo -e ${BLUE})${prompt}${NC}: "
-    
+    PS3="$(echo -e ${BLUE})${prompt}${NC} "
     select option in "${options[@]}"; do
         if [[ -n "$option" ]]; then
             echo "$option"
@@ -111,6 +110,44 @@ compute_nixpkgs_hash() {
     fi
 }
 
+fetch_commit_lazamar() {
+    local curl_version="$1"
+    
+    info "Trying Lazamar nix-versions for curl $curl_version..." >&2
+    local commit
+    # Parse the HTML table to extract the revision for this specific version
+    commit=$(curl -s --max-time 5 "https://lazamar.co.uk/nix-versions/?channel=nixpkgs-unstable&package=curl" 2>/dev/null \
+        | sed -n "s/.*<td>curl<\/td><td>${curl_version}<\/td><td><a[^>]*>\([a-f0-9]\{40\}\)<\/a>.*/\1/p" \
+        | head -1)
+    
+    if [[ -n "$commit" ]]; then
+        success "Found via Lazamar: ${commit:0:8}..." >&2
+        echo "$commit"
+        return 0
+    else
+        warning "Lazamar did not have an entry for curl $curl_version" >&2
+        echo ""
+        return 0
+    fi
+}
+
+fetch_commit_latest() {
+    info "Fetching latest nixpkgs commit..." >&2
+    local commit
+    commit=$(curl -s --max-time 3 "https://api.github.com/repos/NixOS/nixpkgs/commits?per_page=1&sha=master" 2>/dev/null \
+        | grep '"sha"' | head -1 | grep -o '[a-f0-9]\{40\}')
+    
+    if [[ -n "$commit" ]]; then
+        success "Found latest commit: ${commit:0:8}..." >&2
+        echo "$commit"
+        return 0
+    else
+        warning "Could not fetch latest nixpkgs commit" >&2
+        echo ""
+        return 0
+    fi
+}
+
 # Fetch nixpkgs commit hash for a given curl version
 # Primary: Lazamar nix-versions (best historical version mapping)
 # Fallback: GitHub API (for master branch), manual input
@@ -120,46 +157,38 @@ fetch_commit_for_version() {
     info "Resolving curl $curl_version to nixpkgs commit..." >&2
     
     # Get latest nixpkgs master commit
-    info "  Fetching latest nixpkgs commit..." >&2
-    local commit
-    commit=$(curl -s --max-time 3 "https://api.github.com/repos/NixOS/nixpkgs/commits?per_page=1&sha=master" 2>/dev/null \
-        | grep '"sha"' | head -1 | grep -o '[a-f0-9]\{40\}')
-    
-    if [[ -n "$commit" ]]; then
-        success "  ✓ Found latest commit: ${commit:0:8}..." >&2
-        echo "$commit"
-        return 0
+    if [[ "$curl_version" == "latest" ]]; then
+        local latest_commit
+        latest_commit=$(fetch_commit_latest)
+        if [[ -n "$latest_commit" ]]; then
+            echo "$latest_commit"
+            return 0
+        fi
     fi
 
     # Lazamar
-    info "  Trying Lazamar nix-versions..." >&2
-    local commit
-    # Parse the HTML table to extract the revision for this specific version
-    commit=$(curl -s --max-time 5 "https://lazamar.co.uk/nix-versions/?channel=nixpkgs-unstable&package=curl" 2>/dev/null \
-        | sed -n "s/.*<td>curl<\/td><td>${curl_version}<\/td><td><a[^>]*>\([a-f0-9]\{40\}\)<\/a>.*/\1/p" \
-        | head -1)
-    
-    if [[ -n "$commit" ]]; then
-        success "  ✓ Found via Lazamar: ${commit:0:8}..." >&2
-        echo "$commit"
+    local lazamar_commit
+    lazamar_commit=$(fetch_commit_lazamar "$curl_version")
+    if [[ -n "$lazamar_commit" ]]; then
+        echo "$lazamar_commit"
         return 0
     fi
     
     # Last resort: ask user to provide commit manually
-    warning "Could not automatically resolve curl $curl_version" >&2
-    warning "You can:" >&2
-    warning "  1. Go to nixpkgs GitHub repo and search for the commit that updated curl to version $curl_version" >&2
-    warning "  2. Edit cve.yaml and replace the commit hash manually" >&2
+    # warning "Could not automatically resolve curl $curl_version" >&2
+    # warning "You can:" >&2
+    # warning "  1. Go to nixpkgs GitHub repo and search for the commit that updated curl to version $curl_version" >&2
+    # warning "  2. Edit report.yaml and replace the commit hash manually" >&2
     
-    read -p "$(echo -e ${YELLOW})Enter nixpkgs commit hash manually (or press Enter to use 'master'):${NC} " manual_commit
+    # read -p "$(echo -e ${YELLOW})Enter nixpkgs commit hash manually (or press Enter to use 'master'):${NC} " manual_commit
     
-    if [[ -z "$manual_commit" ]]; then
-        manual_commit="master"
-        warning "Using 'master' branch reference" >&2
-    fi
+    # if [[ -z "$manual_commit" ]]; then
+    #     manual_commit="master"
+    #     warning "Using 'master' branch reference" >&2
+    # fi
     
-    echo "$manual_commit"
-    return 0
+    # echo "$manual_commit"
+    # return 0
 }
 
 # ============================================================================
@@ -170,7 +199,7 @@ create_security_report() {
     info "Creating new security report..."
     echo ""
     
-    # Get CVE info
+    # Get report info
     local cve_id
     cve_id=$(prompt "Enter CVE ID" "CVE-YYYY-XXXXX")
     
@@ -233,19 +262,19 @@ create_security_report() {
     info "Creating directory structure..."
     mkdir -p "$case_dir"/{vm-configs,exploit,test-scripts}
     
-    # Create cve.yaml from template
-    info "Generating cve.yaml from template..."
+    # Create report.yaml from template
+    info "Generating report.yaml from template..."
     
-    if [[ ! -f "$TEMPLATE_DIR/cve.yaml" ]]; then
-        error "Template cve.yaml not found: $TEMPLATE_DIR/cve.yaml"
+    if [[ ! -f "$TEMPLATE_DIR/report.yaml" ]]; then
+        error "Template report.yaml not found: $TEMPLATE_DIR/report.yaml"
     fi
     
     # Copy template and substitute values
-    cp "$TEMPLATE_DIR/cve.yaml" "$case_dir/cve.yaml"
+    cp "$TEMPLATE_DIR/report.yaml" "$case_dir/report.yaml"
     
     # Read the template and do careful string replacements
     local content
-    content=$(cat "$case_dir/cve.yaml")
+    content=$(cat "$case_dir/report.yaml")
     
     # Use bash string replacement (handles special characters better than sed)
     content="${content//CVE-YYYY-XXXXX/$cve_id}"
@@ -253,9 +282,11 @@ create_security_report() {
     content="${content//<VULNERABLE_COMMIT_HASH>/$vuln_commit}"
     content="${content//X.Y.Z/$vulnerable_version}"
     
-    # Substitute sha256 hash if available (nix already includes "sha256-" prefix)
+    # Substitute sha256 hash if available (convert from sha256-<base64> to sha256:<base64>)
     if [[ -n "$vuln_hash" ]]; then
-        content="${content//<BASE64_HASH>/${vuln_hash#sha256-}}"
+        # Replace "sha256-" with "sha256:" for consistency
+        vuln_hash="${vuln_hash/sha256-/sha256:}"
+        content="${content//<BASE64_HASH>/$vuln_hash}"
     fi
 
     content="${content//remote/$attack_pattern}"
@@ -266,7 +297,7 @@ create_security_report() {
     content=$(echo "$content" | sed '/^[[:space:]]\+#/d')
     
     # Write back to file
-    printf '%s\n' "$content" > "$case_dir/cve.yaml"
+    printf '%s\n' "$content" > "$case_dir/report.yaml"
     
     # Copy template files
     info "Copying template files..."
@@ -275,7 +306,7 @@ create_security_report() {
     cp "$TEMPLATE_DIR/vm-configs/client.nix" "$case_dir/vm-configs/" 2>/dev/null || true
     cp "$TEMPLATE_DIR/vm-configs/attacker.nix" "$case_dir/vm-configs/" 2>/dev/null || true
     
-    success "CVE case created: $case_dir"
+    success "Report case created: $case_dir"
     echo ""
     
     show_main_menu
@@ -298,7 +329,7 @@ update_hashes() {
     fi
     
     if [[ ${#cases[@]} -eq 0 ]]; then
-        error "No CVE cases found in $REPORT_DIR"
+        error "No report cases found in $REPORT_DIR"
     fi
     
     cases+=("Cancel")
@@ -333,45 +364,71 @@ compute_hash() {
 
 update_single_hash() {
     local case_dir="$1"
-    local cve_yaml="$case_dir/cve.yaml"
+    local report_yaml="$case_dir/report.yaml"
     
-    if [[ ! -f "$cve_yaml" ]]; then
-        error "cve.yaml not found in $case_dir"
+    if [[ ! -f "$report_yaml" ]]; then
+        error "report.yaml not found in $case_dir"
     fi
     
     info "Computing tarball hashes for: $(basename $case_dir)"
     echo ""
+
+    # Extract vulnerable version from report.yaml (under curl.vulnerable.version)
+    local vulnerable_version
+    vulnerable_version=$(sed -n '/vulnerable:/,/^[^ ]/p' "$report_yaml" | grep "version:" | sed -E 's/.*version:[[:space:]]+([0-9.]+).*/\1/')
     
-    # Extract commits using grep
+    if [[ -z "$vulnerable_version" ]]; then
+        error "Could not extract vulnerable version from $report_yaml"
+    fi
+    
+    info "Vulnerable version: $vulnerable_version"
+    
+    # Fetch commit hash
     local vuln_commit
-    vuln_commit=$(grep -A 2 "vulnerable:" "$cve_yaml" | grep "commit:" | sed 's/.*commit: *//' | tr -d ' ')
-    
+    vuln_commit=$(fetch_commit_lazamar "$vulnerable_version")
+
     if [[ -z "$vuln_commit" ]]; then
-        error "Could not extract commit hashes from $cve_yaml"
+        warning "Could not fetch commit hash for version $vulnerable_version, please change to a different version"
+        return
+    fi
+
+    # Check if commit hash field exists 
+    if grep -q "commit:" "$report_yaml"; then
+        warning "Existing commit field found in $report_yaml, it will be updated"
+    else
+        warning "No commit field found in $report_yaml, it will be added"
+        # Add placeholder commit field after the version line
+        sed -i "/version:/a\    commit: <VULNERABLE_COMMIT_HASH>" "$report_yaml"
     fi
 
     # Check if sha256 hashes fields exist, if not, we will add them
-    if grep -q "sha256:" "$cve_yaml"; then
-        warning "Existing sha256 fields found in $cve_yaml, they will be updated"
+    if grep -q "sha256:" "$report_yaml"; then
+        warning "Existing sha256 fields found in $report_yaml, they will be updated"
     else
-        warning "No sha256 fields found in $cve_yaml, they will be added"
+        warning "No sha256 fields found in $report_yaml, they will be added"
         # Add placeholder sha256 fields after the commit lines
-        sed -i "/commit: $vuln_commit/a\    sha256: <BASE64_HASH>" "$cve_yaml"
+        sed -i "/commit: $vuln_commit/a\    sha256: <BASE64_HASH>" "$report_yaml"
     fi
     
     info "Computing vulnerable version hash..."
     local vuln_hash
     vuln_hash=$(compute_hash "$vuln_commit")
+    # Convert from sha256-<base64> to sha256:<base64>
+    vuln_hash="${vuln_hash/sha256-/sha256:}"
     success "Vulnerable hash: $vuln_hash"
     
-    # Update cve.yaml using sed to replace whatever after "sha256:" with the new hash
-    info "Updating cve.yaml with hashes..."
-    # Escape special characters in hash for use in sed replacement
+    # Update report.yaml using sed to replace whatever after "sha256:" with the new hash
+    info "Updating report.yaml with hashes..."
+    # Update commit hash (use | as delimiter)
+    local escaped_commit
+    escaped_commit=$(printf '%s\n' "$vuln_commit" | sed -e 's/[&]/\\&/g')
+    sed -i "s|commit: .*|commit: ${escaped_commit}|" "$report_yaml"
+    # Escape special characters in hash for use in sed replacement (use | as delimiter to avoid / conflicts)
     local escaped_hash
-    escaped_hash=$(printf '%s\n' "$vuln_hash" | sed -e 's/[\/&]/\\&/g')
-    sed -i "s/sha256: .*/sha256: ${escaped_hash}/" "$cve_yaml"
+    escaped_hash=$(printf '%s\n' "$vuln_hash" | sed -e 's/[&]/\\&/g')
+    sed -i "s|sha256: .*|sha256: ${escaped_hash}|" "$report_yaml"
     
-    success "Tarball hashes saved to cve.yaml"
+    success "Hashes saved to report.yaml"
     echo ""
 }
 
@@ -380,27 +437,27 @@ update_single_hash() {
 # ============================================================================
 
 run_tests() {
-    info "Run CVE case tests..."
+    info "Run report case tests..."
     echo ""
     
     # List available cases
     local cases=()
     if [[ -d "$REPORT_DIR" ]]; then
         while IFS= read -r -d '' case_dir; do
-            if [[ -f "$case_dir/cve.yaml" ]]; then
+            if [[ -f "$case_dir/report.yaml" ]]; then
                 cases+=("$(basename "$case_dir")")
             fi
         done < <(find "$REPORT_DIR" -maxdepth 1 -type d ! -name "reports" -print0 | sort -z)
     fi
     
     if [[ ${#cases[@]} -eq 0 ]]; then
-        error "No CVE cases with cve.yaml found"
+        error "No report cases with report.yaml found"
     fi
     
     cases+=("All cases" "Cancel")
     
     local selected
-    selected=$(select_menu "Select CVE case to test:" "${cases[@]}")
+    selected=$(select_menu "Select report case to test:" "${cases[@]}")
     
     if [[ "$selected" == "Cancel" ]]; then
         show_main_menu
@@ -444,6 +501,8 @@ run_test_target() {
     else
         error "Test failed: $target"
     fi
+
+    read -p "Press Enter to continue..." < /dev/tty
 }
 
 run_all_tests() {
@@ -456,7 +515,7 @@ run_all_tests() {
     while IFS= read -r -d '' case_dir; do
         local case_name=$(basename "$case_dir")
         
-        if [[ -f "$case_dir/cve.yaml" ]]; then
+        if [[ -f "$case_dir/report.yaml" ]]; then
             info "Testing: $case_name"
             
             if cd "$case_dir" && nix build ".#testVulnerableTrue" 2>&1 | tail -5; then
@@ -483,7 +542,7 @@ run_all_tests() {
 # ============================================================================
 
 manage_vms() {
-    info "Manage VMs for CVE cases..."
+    info "Manage VMs for report cases..."
     echo ""
     
     list_available_reports
@@ -517,7 +576,7 @@ list_available_reports() {
     local cases=()
     if [[ -d "$REPORT_DIR" ]]; then
         while IFS= read -r -d '' case_dir; do
-            if [[ -f "$case_dir/cve.yaml" ]]; then
+            if [[ -f "$case_dir/report.yaml" ]]; then
                 cases+=("$(basename "$case_dir")")
             fi
         done < <(find "$REPORT_DIR" -maxdepth 1 -type d ! -name "reports" -print0 | sort -z)
@@ -603,6 +662,8 @@ main() {
     if [[ ! -d "$TEMPLATE_DIR" ]]; then
         error "Template directory not found: $TEMPLATE_DIR"
     fi
+
+    git add . >/dev/null 2>&1 || true
     
     show_main_menu
 }
