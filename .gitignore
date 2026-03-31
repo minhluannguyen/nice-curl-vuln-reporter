@@ -1,5 +1,6 @@
 *.qcow2
-result*
+result
+result-*
 
 .venv/
 __pycache__/
