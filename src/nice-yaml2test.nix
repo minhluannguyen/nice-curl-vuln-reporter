@@ -40,8 +40,10 @@ let
       ];
     in
       ''
-        print("STEP: Running command on ${machine}")
-        ${machine}.execute("${escapedCommand}", timeout=${toString timeout})
+        print("STEP: Running command on ${machine}: ${command}")
+        stdout = ${machine}.execute("${escapedCommand}", timeout=${toString timeout})
+        print(stdout[1])  
+        print("EXIT CODE: " + str(stdout[0]))
       '';
 
   # Translate 'wait' action - waits for conditions (port, service, file, etc)

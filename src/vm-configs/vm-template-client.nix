@@ -11,6 +11,7 @@ let
     else null;
   customClientConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
 
+  # networking configuration
   normalizePorts = ports: if builtins.isList ports then ports else [ ports ];
 
   outboundGuestPortsRaw =
@@ -24,6 +25,7 @@ let
   outboundGuestPorts = if outboundGuestPortsRaw == null then [] else normalizePorts outboundGuestPortsRaw;
   outboundHostPorts = if outboundHostPortsRaw == null then [] else normalizePorts outboundHostPortsRaw;
 
+  # Fetch curl package from provided nixpkgs commit
   mkCurlFromTarball = info:
     let
       tarballUrl = "https://github.com/NixOS/nixpkgs/archive/${info.commit}.tar.gz";
@@ -43,31 +45,63 @@ let
     in
       if importedPkgs ? curlFull then importedPkgs.curlFull else importedPkgs.curl;
 
-  mkCurlCustom = src:
-    pkgs.stdenv.mkDerivation ({
-      name = "curl-${src.version}";
-      src = builtins.fetchurl ({ url = src.url; } //
-        (if src ? sha256 then { sha256 = src.sha256; }
-         else if src ? hash then { sha256 = src.hash; }
-         else throw "curl.custom_src requires either sha256 or hash"));
-      buildInputs = [ pkgs.zlib ];
-      configureFlags = [ "--host=x86_64-pc-linux-gnu" "--without-ssl" ];
-      CFLAGS = src.cflags or "";
-    } // lib.optionalAttrs (src.disable_hardening or false) {
-      hardeningDisable = [ "all" ];
-    });
-
   curlVulnerable =
-    if curlCfg.strategy == "nixpkgs"
-    then mkCurlFromTarball curlCfg.vulnerable
-    else if curlCfg.strategy == "custom" && curlCfg.custom_src != null
-    then mkCurlCustom curlCfg.custom_src
-    else throw "Invalid curl configuration strategy or missing custom_src for custom strategy";
+    if curlCfg ? strategy && curlCfg.strategy == "nixpkgs" && curlCfg ? package then mkCurlFromTarball curlCfg.package
+    else if curlCfg ? strategy && curlCfg.strategy == "source" && curlCfg ? package then 
+      import ./custom-curl-source.nix {
+        inherit pkgs;
+        version = curlCfg.package.version;
+        url = curlCfg.package.url;
+        sha256 = curlCfg.package.sha256;
+        tlsBackend = curlCfg.package.tls_backend or "openssl";
+        withZlib = curlCfg.package.with_zlib or true;
+        withLibpsl = curlCfg.package.with_libpsl or true;
+        withBrotli = curlCfg.package.with_brotli or false;
+        withZstd = curlCfg.package.with_zstd or false;
+        withLibidn2 = curlCfg.package.with_libidn2 or false;
+        withNghttp2 = curlCfg.package.with_nghttp2 or false;
+        enableShared = curlCfg.package.enable_shared or true;
+        enableDebug = curlCfg.package.enable_debug or false;
+        doCheck = curlCfg.package.do_check or false;
+        disabledProtocols = curlCfg.package.disabled_protocols or [];
+        disabledFeatures = curlCfg.package.disabled_features or [];
+        extraConfigureFlags = curlCfg.package.extra_configure_flags or [];
+      }
+    else throw "Invalid curl configuration strategy or missing package information";
 
   # curlPatched =
   #   if curlCfg.strategy == "nixpkgs"
   #   then mkCurlFromTarball curlCfg.patched
   #   else pkgs.curlFull;
+
+  # User provided client application in case of library vulnerability
+  clientAppCfg = if clientCfg ? application then clientCfg.application else {};
+  # clientAppOutput = if clientAppCfg ? build_output then clientAppCfg.build_output else "client-app";
+  curlPkgs = curlVulnerable;
+  clientApp = if curlCfg.target == "library" then pkgs.stdenv.mkDerivation {
+    pname = "vulnerable-client";
+    version = "1.0";
+    src = if clientAppCfg ? file_path then "${caseDir}/${clientAppCfg.file_path}" else "${caseDir}/exploit/client";
+    buildInputs = [ pkgs.gcc curlPkgs ];
+    buildPhase = 
+      let
+        buildConfig = if clientAppCfg ? build_config then clientAppCfg.build_config else throw "client application configuration requires 'build_config' to be specified";
+        buildFile = if buildConfig ? build_file then "${buildConfig.build_file}" else throw "client application build configuration requires 'build_file' to be specified";
+        buildFlags = if buildConfig ? build_flags && buildConfig.build_flags != null then "${buildConfig.build_flags}" else "";
+      in ''
+        gcc ${buildFile} -o client-app $(curl-config --cflags --libs) ${buildFlags}
+      '';
+    installPhase = ''
+      mkdir -p $out/bin
+      cp client-app $out/bin/
+    '';
+  } else null;
+
+  startClientScript = if clientApp != null then pkgs.writeScriptBin "start-client" ''
+    #!${pkgs.bash}/bin/bash
+
+    ${clientApp}/bin/client-app "$@"
+  '' else null;
 in
   (import ./vm-template-instance.nix {
     inherit isTest;
@@ -81,14 +115,15 @@ in
           builtins.genList
             (index: {
               from = "guest";
-              guest.address = clientCfg.outbound_guest_address or "10.0.2.10";
+              guest.address = clientCfg.networking.outbound_guest_address or "10.0.2.10";
               guest.port = builtins.elemAt outboundGuestPorts index;
               host.address = "127.0.0.1";
               host.port = builtins.elemAt outboundHostPorts index;
             })
             (builtins.length outboundGuestPorts);
       environment.systemPackages = [ pkgs.code ] 
-      ++ ([ curlVulnerable ]);
+      ++ ([ curlVulnerable ])
+      ++ (if startClientScript != null then [ startClientScript ] else []);
       # ++ (if isVulnerable then [ curlVulnerable ] else [ curlPatched ]);
     };
       hostName = "client";

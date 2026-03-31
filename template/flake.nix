@@ -1,8 +1,8 @@
 {
-  description = "curl CVE case (library-backed)";
+  description = "A NICE curl vulnerability report template";
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-  inputs.curlCveLib.url = "git+file:../..?dir=src";
+  inputs.curlCveLib.url = "../../src";
 
   outputs = { self, nixpkgs, curlCveLib }:
     curlCveLib.lib.mkCurlCveCase {

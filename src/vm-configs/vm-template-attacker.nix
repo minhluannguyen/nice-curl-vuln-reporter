@@ -52,12 +52,30 @@ let
     }
   else null;
 
+  pythonVersionPkg = if hasServerConfig && serverCfg.language == "python" then
+    if serverCfg ? python_version then
+      let
+        versionStr = toString serverCfg.python_version;
+        versionAttr = "python${lib.replaceStrings [ "." ] [ "" ] versionStr}";
+      in
+        if pkgs ? ${versionAttr} then pkgs.${versionAttr} else pkgs.python3
+    else pkgs.python3
+  else null;
+
+  modifiedPyPkgs = if hasServerConfig && serverCfg.language == "python" then
+    if serverCfg ? python_packages then 
+      pythonVersionPkg.withPackages (pythonPkgs: 
+        map (pkg: pythonPkgs.${pkg}) serverCfg.python_packages
+      )
+    else pythonVersionPkg
+  else null;
+
   startServerScript = if hasServerConfig && serverCfg ? run_command then
     pkgs.writeScriptBin "start-server" ''
     #!${pkgs.bash}/bin/bash
     ${if serverCfg ? run_command then 
         if serverCfg.language == "c" then "cd ${serverDerivation}/exploit && ./${serverCfg.run_command}" else
-          if serverCfg.language == "python" then "cd ${serverFiles}/exploit && ${pkgs.python3}/bin/${serverCfg.run_command}" else ""
+          if serverCfg.language == "python" then "cd ${serverFiles}/exploit && ${modifiedPyPkgs}/bin/${serverCfg.run_command}" else ""
     else ""} 
     ''
   else null;
@@ -70,7 +88,7 @@ in
         if isTest || inboundGuestPorts == [] || inboundHostPorts == [] then
           []
         else if builtins.length inboundGuestPorts != builtins.length inboundHostPorts then
-          throw "attacker inbound_guest_ports and inbound_host_ports must have the same number of entries"
+          throw "attacker inbound_guest_ports and inbound_host_ports must have the same number of entries ${toString inboundGuestPorts} vs ${toString inboundHostPorts}"
         else
           builtins.genList
             (index: {
@@ -79,6 +97,7 @@ in
               guest.port = builtins.elemAt inboundGuestPorts index;
             })
             (builtins.length inboundGuestPorts);
+      
       networking.firewall.allowedTCPPorts = inboundGuestPorts;
 
       environment.systemPackages = with pkgs;[ python3 gcc ] ++ (if hasServerConfig then [ startServerScript ] else []);

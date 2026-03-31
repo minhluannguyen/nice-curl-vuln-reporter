@@ -23,6 +23,6 @@ in
 
   users.users.root = {
     isSystemUser = true;
-    password = "root";
+    password = if !isTest then "root" else null;
   };
 }

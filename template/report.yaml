@@ -1,109 +1,123 @@
-# curl CVE descriptor (YAML)
+# A NICE curl vulnerability report
 
-cve_id: CVE-YYYY-XXXXX
-title: curl-<short-title>
+cve_id: 
+title: {{short_title}}
 
 # curl package source and version
 # There are two supported ways to install curl:
-# 1) Fetch from nixpkgs: provide curl versions and let the library find the corresponding nixpkgs commits
+# 1) Fetch from nixpkgs: provide curl versions and let the tool find the corresponding nixpkgs commits
 # 2) Package from source: provide input for building curl from source
 # target specifies which curl package to use (tool or library)
 curl:
-  strategy: nixpkgs
-  target: tool
-  vulnerable:
-    version: X.Y.Z
+  strategy: {{curl_strategy}}
+  target: {{curl_target}}
+  package:
+    version: {{curl_version}}
+    {% if curl_strategy == "nixpkgs" -%}
     # For nixpkgs strategy
-    commit: <VULNERABLE_COMMIT_HASH>
-    sha256: sha256-<BASE64_HASH>
-    # For build from source strategy - Under development, not currently supported
-    # url: https://curl.se/download/archeology/curl-X.Y.Z.tar.gz
-    # hash: sha256-<BASE64_HASH>=
-    # cflags: -Wno-implicit-int -Wno-implicit-function-declaration
-    # disable_hardening: true
+    commit: {{curl_nixpkgs_commit_hash}}
+    sha256: {{curl_nixpkgs_commit_sha256}}
+    {% elif curl_strategy == "source" -%}
+    # For build from source strategy
+    url: <url-to-source-archive>
+    hash: <hash>
+    # extra_configure_flags: []
+    {% endif %}
 
 # VM configurations for VM machines.
 # config_path options by default point to `./vm-configs/<machine>.nix`, but can be customized.
 # Pattern types:
 # - remote: separate client and attacker VMs, communicate over network
 # - local: exploitation occurs within a single VM
-# - other: fully custom VM setup defined by user
+# - other: only custom VMs
 # Custom VM can be provided by specifying the `custom_vms` field.
 vm:
-  attack_pattern: remote
+  attack_pattern: {{vm_attack_pattern}}
+  {% if vm_attack_pattern != "other" -%}
   client:
+    {% if curl_target == "library" -%}
+    application:
+      # file_path: ./exploit/client
+      build_config:
+        build_file: client.c
+        build_flags: ""
+    {% endif -%}
     networking:
       outbound_guest_ports: [ 8080 ]
       outbound_host_ports: [ 8080 ]
       outbound_guest_address: 10.0.2.10
-    # config_path: ./vm-configs/client.nix
+  {% endif -%}
+  {% if vm_attack_pattern == "remote" -%}
   attacker:
     networking:
       inbound_guest_ports: [ 8080 ]
       inbound_host_ports: [ 8080 ]
+    {% if is_attacker_server -%}
     server:
-      file_path: ./exploit/server
+      # file_path: ./exploit/server
+      # service_name: "maliciousServer"
+      wait_in_test_script: true
+      {% if attacker_server_language == "C" -%}
       language: c
       build_config:
         build_inputs: gcc            
         build_commands: gcc -o server server.c
         build_output: server
       run_command: ./server
-    # config_path: ./vm-configs/attacker.nix
-  # custom_vms:
-  #   proxy:
-  #     config_path: ./vm-configs/proxy.nix
-  #     networking:
-          # # Inbound (host -> guest)
-          # inbound_guest_ports: [10801]
-          # inbound_host_ports: [10801]
-      
-          # # Outbound (guest -> host)
-          # outbound_guest_ports: [18080]
-          # outbound_host_ports: [18080]
+      {% elif attacker_server_language == "Python" -%}
+      language: python
+      python_version: "3.12"
+      python_packages: [ pwntools ]
+      run_command: python3 exploit-server.py
+      {% endif -%}
+    {% endif -%}
+  {% endif -%}
+  {% if custom_vms -%}
+  custom_vms:
+    proxy:
+      config_path: ./vm-configs/proxy.nix
+      networking:
+          # Inbound (host -> guest)
+          inbound_guest_ports: [10801]
+          inbound_host_ports: [10801]
+          # Outbound (guest -> host)
+          outbound_guest_ports: [18080]
+          outbound_host_ports: [18080]
+  {% endif %}
 
 # Defaults to `./test-script.py` if not specified.
 # test_script_path: ./test-scripts/test-script.py
 test_script:
-  - run:
-    machine: client
-    command: curl http://attacker:8080
-    timeout: 60
   - wait:
       machine: attacker
       type: port
       port: 8080
-  - wait:
-      machine: attacker
-      type: service  # or 'unit'
-      service_name: serverService.service
-  - wait:
-      machine: client
-      type: file
-      path: /tmp/result.txt
-  - wait:
-      machine: client
-      type: command
-      command: test -f /tmp/ready
-      timeout: 90
-  - assert:
-      type: check-memory-usage-high
-      machine: client
-      command: curl http://attacker:8080
-      maximum_memory_bytes: 536870912
+  - run:
+    machine: client
+    command: curl http://attacker:8080
+    timeout: 60
   - assert:
       type: check-file-contains
       machine: client
       file_path: /var/log/server.log
       content: "Error occurred"
-
-
-# Assertions to validate the exploit. Each assertion has a name and parameters.
-assertions:
-  # - name: check-memory-usage-high
-  #   params:
+  # - wait:
+  #     machine: attacker
+  #     type: service  # or 'unit'
+  #     service_name: serverService.service
+  # - wait:
   #     machine: client
-  #     command: curl attacker:8080
+  #     type: file
+  #     path: /tmp/result.txt
+  # - wait:
+  #     machine: client
+  #     type: command
+  #     command: test -f /tmp/ready
+  #     timeout: 90
+  # - assert:
+  #     type: check-memory-usage-high
+  #     machine: client
+  #     command: curl http://attacker:8080
   #     maximum_memory_bytes: 536870912
 
 # Metadata for CVE report
@@ -111,8 +125,9 @@ meta:
   affected_software: cURL
   vulnerable_versions: ">= X.Y.Z and <= A.B.C"
   disclosure_date: "YYYY-MM-DD"
-  impact:
+  impacts:
     - 
   weakness: 
   severity: 
   references:
+    -

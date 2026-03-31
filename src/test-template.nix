@@ -22,8 +22,18 @@ let
       in
         ''
           attacker.wait_for_unit("multi-user.target")
-          attacker.wait_for_unit("maliciousServer.service")
-          ${portWaits}
+          ${
+          let
+            isServiceWait = attackerCfg ? server && attackerCfg.server ? wait_in_test_script && attackerCfg.server.wait_in_test_script;
+            service = if isServiceWait then attackerCfg.server.service_name or "maliciousServer" else null;
+          in
+            if isServiceWait then 
+              ''
+                attacker.wait_for_unit("${service}")
+              ''
+            else ""
+          }
+          #${portWaits}
         ''
     else
       "";
