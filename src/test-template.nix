@@ -1,4 +1,4 @@
-{ isVulnerable, cfg, hasFile, caseDir, clientCfg, curlCfg, enableAttacker, attackerCfg, customVmMap, customNodeNames }:
+{ isInteractive, isVulnerable, cfg, hasFile, caseDir, clientCfg, curlCfg, enableClient, enableAttacker, attackerCfg, customVmMap, customNodeNames }:
 { pkgs, lib, ... }:
 
 let 
@@ -40,7 +40,7 @@ let
 
   defaultWaitBlock = lib.concatStringsSep "\n" [
     defaultAttackerWaitBlock
-    "client.wait_for_unit(\"multi-user.target\")"
+    (if enableClient then "client.wait_for_unit(\"multi-user.target\")" else "")
   ];
 in
   pkgs.testers.runNixOSTest {
@@ -61,9 +61,12 @@ in
       }) customNodeNames)
     );
 
-    testScript = lib.concatStringsSep "\n" [
+    sshBackdoor.enable = if isInteractive then true else false;
+
+    testScript = lib.concatStringsSep "\n" ([
       "start_all()"
       defaultWaitBlock
-      testScript
-    ];
+    ] ++ (if !isInteractive then [ testScript ] else [])
+      ++ (if isInteractive then [ "print(\"INTERACTIVE MODE SETUP COMPLETE. READY FOR INTERACTIVE TESTING.\")" ] else [])
+    );
   }

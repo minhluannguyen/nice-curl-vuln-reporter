@@ -22,9 +22,14 @@ let
     if attackerCfg ? networking && attackerCfg.networking ? inbound_host_ports then attackerCfg.networking.inbound_host_ports
     else null;
 
+  allowedTCPPortsRaw =
+    if attackerCfg ? networking && attackerCfg.networking ? allowed_tcp_ports then attackerCfg.networking.allowed_tcp_ports
+    else null;
+
   inboundGuestPorts = if inboundGuestPortsRaw == null then [] else normalizePorts inboundGuestPortsRaw;
   inboundHostPorts = if inboundHostPortsRaw == null then [] else normalizePorts inboundHostPortsRaw;
-
+  allowedTCPPorts = if allowedTCPPortsRaw == null then [] else normalizePorts allowedTCPPortsRaw;
+  
   # Server configuration for the attacker VM
   hasServerConfig = attackerCfg ? server;
   serverCfg = if hasServerConfig then attackerCfg.server else {};
@@ -84,21 +89,21 @@ in
     inherit isTest;
     hostName = "attacker";
     fixedConfig = {
-      virtualisation.forwardPorts =
-        if isTest || inboundGuestPorts == [] || inboundHostPorts == [] then
-          []
-        else if builtins.length inboundGuestPorts != builtins.length inboundHostPorts then
-          throw "attacker inbound_guest_ports and inbound_host_ports must have the same number of entries ${toString inboundGuestPorts} vs ${toString inboundHostPorts}"
-        else
-          builtins.genList
-            (index: {
-              from = "host";
-              host.port = builtins.elemAt inboundHostPorts index;
-              guest.port = builtins.elemAt inboundGuestPorts index;
-            })
-            (builtins.length inboundGuestPorts);
+      # virtualisation.forwardPorts =
+      #   if isTest || inboundGuestPorts == [] || inboundHostPorts == [] then
+      #     []
+      #   else if builtins.length inboundGuestPorts != builtins.length inboundHostPorts then
+      #     throw "attacker inbound_guest_ports and inbound_host_ports must have the same number of entries ${toString inboundGuestPorts} vs ${toString inboundHostPorts}"
+      #   else
+      #     builtins.genList
+      #       (index: {
+      #         from = "host";
+      #         host.port = builtins.elemAt inboundHostPorts index;
+      #         guest.port = builtins.elemAt inboundGuestPorts index;
+      #       })
+      #       (builtins.length inboundGuestPorts);
       
-      networking.firewall.allowedTCPPorts = inboundGuestPorts;
+      networking.firewall.allowedTCPPorts = allowedTCPPorts;
 
       environment.systemPackages = with pkgs;[ python3 gcc ] ++ (if hasServerConfig then [ startServerScript ] else []);
 

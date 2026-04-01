@@ -12,8 +12,9 @@ import re
 from pathlib import Path
 from typing import Optional, List, Tuple
 import urllib.request
-import html.parser
+import time
 import yaml
+import pexpect
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -462,6 +463,124 @@ def run_tests():
     
     show_main_menu()
 
+ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+def strip_ansi(s: str) -> str:
+    s = ANSI_RE.sub("", s)
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    return s
+
+def read_until_clean(child, needle: str, timeout: float = 120.0) -> str:
+    deadline = time.time() + timeout
+    raw_parts = []
+    clean_buf = ""
+
+    while time.time() < deadline:
+        try:
+            chunk = child.read_nonblocking(size=4096, timeout=1)
+        except pexpect.TIMEOUT:
+            continue
+
+        raw_parts.append(chunk)
+        clean_buf += strip_ansi(chunk)
+
+        if needle in clean_buf:
+            return clean_buf
+
+    raise TimeoutError(f"Did not see cleaned text: {needle!r}")
+
+def start_scenario():
+    """Start scenario for a single case"""
+    info("Starting scenario for a report case...")
+    print()
+    
+    cases = sorted([d.name for d in REPORT_DIR.iterdir() if d.is_dir() and (d / "report.yaml").exists()])
+    
+    if not cases:
+        error("No valid reports found")
+    
+    cases.append("Cancel")
+    selected = select_menu("Select report to view VMs:", cases)
+    
+    if selected == "Cancel":
+        show_main_menu()
+        return
+    
+    case_dir = REPORT_DIR / selected
+    
+    try:
+        subprocess.run(["bash", SCRIPT_DIR / "cleanup-script.sh"], capture_output=True)
+    except Exception:
+        pass
+  
+    # Extract VM names from flake
+    info("Extracting VM names from flake...")
+    try:
+        subprocess.run(["git", "add", case_dir], cwd=SCRIPT_DIR, capture_output=True)
+
+        child = pexpect.spawn(
+            "nix run .#startScenario.driverInteractive",
+            cwd=str(case_dir),
+            encoding="utf-8",
+            echo=False
+        )
+
+        # Log output to our terminal
+        child.logfile_read = sys.stdout
+
+        clean_text = read_until_clean(
+            child,
+            "additionally exposed symbols:",
+            timeout=120,
+        )
+
+        ssh_commands = dict(re.findall(
+            r"^\s*([A-Za-z0-9._-]+):\s+(ssh\b[^\r\n]+)$",
+            clean_text,
+            re.MULTILINE,
+        ))
+
+        child.sendline("test_script()")
+
+        post_text = read_until_clean(
+            child,
+            "INTERACTIVE MODE SETUP COMPLETE. READY FOR INTERACTIVE TESTING.",
+            timeout=120,
+        )
+
+        if len(ssh_commands) == 0:
+            raise RuntimeError("Did not find any SSH commands in the output. Maybe there is no VM available?")
+        
+        info(f"{GREEN}To access the machines, use the following SSH commands:{NC}")
+        for name, cmd in ssh_commands.items():
+            print(f"  - {name}: {cmd}")
+
+        info(f"{RED}To exit the scenario, press Ctrl+D in this terminal and choose 'Yes' to kill the VMs.{NC}")
+
+        terminator_cmds = []
+        for name, cmd in ssh_commands.items():
+            terminator_cmds.append(f'terminator -T {name} -e "{cmd}"')
+
+        full_cmd = " & ".join(terminator_cmds)
+
+        time.sleep(2)  # Give some time for the child process to set up before launching terminator
+        
+        subprocess.Popen(
+            ["nix-shell", "-p", "terminator", "openssh", "--run", full_cmd],
+            cwd=case_dir,
+        )
+
+        child.logfile = None
+        child.logfile_read = None
+        child.logfile_send = None
+        child.interact()
+
+
+    except Exception as e:
+        error(f"Could not start scenario: {e}")
+    
+    show_main_menu()
+
 
 def manage_vms():
     """Manage VMs menu"""
@@ -492,7 +611,7 @@ def manage_vms():
     try:
         subprocess.run(["git", "add", case_dir], cwd=SCRIPT_DIR, capture_output=True)
         result = subprocess.run(
-            ["nix", "flake", "show", "--json"],
+            ["nix", "flake", "show", "--json", "--allow-import-from-derivation"],
             cwd=case_dir,
             capture_output=True,
             text=True,
@@ -554,6 +673,7 @@ def show_main_menu():
             "Create new security report",
             "Update hashes for existing report",
             "Manage VMs",
+            "Start scenario (interactive)",
             "Run tests",
             "Exit"
         ]
@@ -565,6 +685,8 @@ def show_main_menu():
         update_hashes()
     elif choice == "Manage VMs":
         manage_vms()
+    elif choice == "Start scenario (interactive)":
+        start_scenario()
     elif choice == "Run tests":
         run_tests()
     elif choice == "Exit":
