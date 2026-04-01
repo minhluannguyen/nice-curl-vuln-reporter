@@ -93,9 +93,9 @@ test_script:
       type: port
       port: 8080
   - run:
-    machine: client
-    command: curl http://attacker:8080
-    timeout: 60
+      machine: client
+      command: curl http://attacker:8080
+      timeout: 60
   - assert:
       type: check-file-contains
       machine: client

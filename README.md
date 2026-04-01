@@ -1,114 +1,336 @@
-# Template: curl CVE Case
+# A NICE cURL Vulnerability reporter
 
-This folder is a starter template for CVE reproductions using the shared library at `src`.
+This library provides a structured and reproducible way to report cURL vulnerabilities using the NICE framework.
+Each vulnerability case is defined by a user-friendly descriptor `report.yaml` that specifies the vulnerable cURL package, VM configuration, test script that simulates the attack with assertions to validate the existence of the vulnerability. 
 
-## Files
+## Structure
 
-- `cve.yaml`: preferred case descriptor format
-- `cve.toml`: compatibility descriptor format
-- `flake.nix`: exposes build/test outputs (`vmClient`, `vmAttacker`, `testVulnerableTrue`, ...)
-- `vm-configs/*.nix`: per-node NixOS config overrides
-- `test-scripts/test-script.py`: NixOS test script
+Main project files and directories:
+- `nice-report.py`: CLI helper script to navigate through the library and orchestrate VM builds and test runs.
+- `cleanup-script.sh`: helper script to clean up temporary files.
+- `src/`: library source code.
+- `reports/`: directory containing vulnerability reports, with example cases from CVEs.
+- `templates/`: template files for new vulnerability reports.
+
+Each case directory:
+- `report.yaml`: vulnerability descriptor
+- `flake.nix`: Nix flake for the case, exposing VM and test targets
+- `vm-configs/*.nix`: Extendable VM configurations
+- `test-script.py`: Extendable test script
 - `exploit/`: exploit artifacts/scripts
 
-## Descriptor format
+## The `nice-report.py` helper script
+This script provides a command-line interface to interact with the vulnerability reports.
 
-The library currently prefers `cve.yaml` and falls back to `cve.toml`.
+### 1. Install dependencies and set up the environment.
 
-Required top-level fields:
+You can install the required dependencies using the following command:
 
-- `cve_id`
-- `title`
-- `curl`
-- `vm`
-- `test_script_path`
-- `assertions` (list)
+```bash
+# Directly install with pip
+pip install -r requirements.txt
+# Or create a virtual environment and install dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-Recommended:
+### 2. Functionality:
 
-- `meta`
+```bash
+╔═════════════════════════════════════════════════════════╗
+║            A NICE cURL vulnerability reporter           ║
+╚═════════════════════════════════════════════════════════╝
+
+
+1) Create new security report
+2) Update hashes for existing report
+3) Manage VMs
+4) Run tests
+5) Exit
+What would you like to do? 
+```
+
+1) Create new security report: Creates a new vulnerability report from a template after asking a series of questions.
+2) Update hashes for existing report: Updates the nix hashes in the `report.yaml` file for a given case. If the case uses the `nixpkgs` strategy, it will update the `commit` and `sha256` fields. If the case uses the `source` strategy, it will update the `hash` field.
+3) Manage VMs: Provides options for managing the VMs.
+4) Run tests: Provides options for running the tests for a given case.
+
+## YAML report file
+
+### Top-level fields:
+
+Header fields:
+- `cve_id`: CVE identifier (if assigned)
+- `title`: concise title of the vulnerability
+
+Main blocks:
+- `curl`: defines the vulnerable curl package.
+- `vm`: contains VM configuration for the manual reproduction and testing of the vulnerability.
+- `test_script`: defines the test script to validate the vulnerability.
+- `meta`: metadata for the vulnerability report (optional)
 
 ## `curl` block
 
 ```yaml
 curl:
-  nixpkgs_strategy: tarball  # or custom
-  vulnerable:
-    nixpkgs_url: https://github.com/NixOS/nixpkgs/archive/<commit>.tar.gz
-    nixpkgs_sha256: sha256:<hash>
+  strategy: <nixpkgs|source>
+  target: <tool|library>
+  # If strategy is "nixpkgs":
+  package:
     curl_version: X.Y.Z
-  patched:
-    nixpkgs_url: https://github.com/NixOS/nixpkgs/archive/<commit>.tar.gz
-    nixpkgs_sha256: sha256:<hash>
-    curl_version: A.B.C
+    commit: <git-commit-hash>
+    sha256: <sha256:hash>
+  # If strategy is "source":
+  package:
+    url: <url-to-source-archive>
+    hash: <hash>
+    extra_configure_flags: [ <extra-configure-flag1>, ... ]
 ```
 
-If `nixpkgs_strategy: custom`, use `curl.custom_src`.
+- `strategy` defines the two ways of obtainting the curl package: fetching a specific version from `nixpkgs` or building from `source`.
+- `target` specifies which component of curl is vulnerable and will be tested in this report: either the `tool` (curl CLI) or the `library` (libcurl).
+- For `nixpkgs` strategy, specify the `curl_version` and the corresponding nixpkgs `commit` and its `sha256` hash to ensure reproducibility. This can be done automatically using the `nice-report.py` helper script or manually by looking up the nixpkgs history and calculating the hash with `nix-prefetch-url <url> --unpack`.
+- For `source` strategy, provide the `url` to the source archive, its `hash`, can also be calculated using the `nice-report.py` helper script or manually with `nix hash convert --hash-algo sha256 --to sri <hash-from-nix-prefetch-url>`.
+
+- Both options also support build-time configuration flags (under development).
+
 
 ## `vm` block
 
-### Common
+### VM options
 
-- `vm.pattern`: use `remote` to include attacker node
-- `vm.custom_vm`: set `true` to enable `vm.custom_vms`
+There are 2 main types of interactions supported in curl vulnerabilities:
+- `attack_pattern`: 
+  - `remote`: provide 2 VMs (client and attacker) to simulate a remote attack scenario.
+  - `local`: provide a single VM to simulate a local attack scenario.
+  - `other`: (no predefined VMs) for other custom scenarios.
 
-### Client (outbound forwarding)
+### Client block
 
-Use these keys:
+```yaml
+vm:
+  client:
+    config_path: vm-configs/client.nix
+    networking:
+      outbound_guest_ports: 8080
+      outbound_host_ports: 8080
+      outbound_guest_address: 10.0.2.10
+    application:
+      file_path: ./exploit/client
+      build_config:
+        build_file: client.c
+        build_flags: ""
+```
 
-- `outbound_guest_ports`
-- `outbound_host_ports`
-- optional `outbound_guest_address` (default: `10.0.2.10`)
+- `config_path` is optional to allow extending the default VM configuration for the client machine using NixOS configurations. If not provided, a default configuration (`vm-configs/client.nix`) will be used if the file exists.
+
+- `networking` defines the port forwarding configuration for the client VM.
+The client machine only allows outbound forwarding, so it supports `outbound_guest_ports` and `outbound_host_ports` to map the guest ports on the VM to the host ports on host machine.
+
+The `outbound_guest_address` field is used to specify the host address that the guest will use to connect to the attacker.
 
 Both port fields accept either:
 
 - a single integer (e.g. `8080`)
 - a list of integers (e.g. `[8080, 8081]`)
 
-### Attacker (inbound forwarding)
+This will soon be replaced.
 
-Use these keys:
+- `application` is enabled when the curl's target is `library` and allows to specify a custom application that uses the vulnerable libcurl component.
+  - `file_path` points to the application source code in the `exploit/` directory. By default, it takes all the files in the `exploit/client/` directory.
+  - `build_config` defines how to build the application, with a `build_file` as the gcc source file and `build_flags` for any additional flags needed during compilation.
 
-- `inbound_guest_ports`
-- `inbound_host_ports`
+This put a executable `start-client` in the VM that will be used in the test script to trigger the vulnerability.
 
-Both support single integer or list.
-
-### Custom VMs (supports inbound + outbound)
-
-Each node under `vm.custom_vms.<name>` may define:
-
-- `config_path`
-- inbound: `inbound_guest_ports` / `inbound_host_ports`
-- outbound: `outbound_guest_ports` / `outbound_host_ports`
-
-Legacy fallback is also supported for inbound mapping when inbound keys are absent:
-
-- `guest_ports` / `host_ports`
-- `guest_port` / `host_port`
-
-## Assertions
-
-Use a list in `assertions`:
+### Attacker block
 
 ```yaml
-assertions:
-  - name: oom
-    params:
-      machine: client
-      command: curl attacker:8080
-      maximum_memory_bytes: 536870912
+vm:
+  attacker:
+    config_path: vm-configs/attacker.nix
+    networking:
+      inbound_guest_ports: 8080
+      inbound_host_ports: 8080
+    server:
+      file_path: ./exploit/server
+      service_name: "maliciousServer"
+      wait_in_test_script: true
+      # If the server is written in C
+      language: c
+      build_config:
+        build_inputs: gcc            
+        build_commands: gcc -o server server.c
+        build_output: server
+      run_command: ./server
+      # If the server is written in Python
+      language: python
+      python_version: "3.12"
+      python_packages: [ pwntools ]
+      run_command: python3 exploit-server.py
 ```
 
-Supported names are defined by `src/assertion/make-assertion.nix`.
+- Similar to the client block, `config_path` allows extending the default VM configuration for the attacker machine. If not provided, a default configuration (`vm-configs/attacker.nix`) will be used if the file exists.
+- `networking` for the attacker machine only allows inbound forwarding, so it supports `inbound_guest_ports` and `inbound_host_ports` to map the guest ports on the VM to the host ports on host machine.
+- `server` defines the server application that simulates the attacker's malicious server to exploit the curl client. It supports both C and Python applications with different build configurations.
+  - `file_path` points to the server application source code in the `exploit/` directory. By default, it takes all the files in the `exploit/attacker/` directory.
+  - `service_name` is an optional field that specifies the name of the systemd service to run the server. If not provided, the default service name `maliciousServer` will be used. This is useful for cases where the server needs to be running before the test script starts, as it allows waiting for the service to be active before executing the attack command in the test script.
+  - `wait_in_test_script` is a boolean flag that indicates whether the test script should automatically wait for the server to be ready before continuing.
+  - For C applications, specify the `build_config` with `build_inputs` for any dependencies needed during compilation, `build_commands` for the commands to build the server, and `build_output` for the name of the output executable.
+  - For Python applications, specify the `python_version`, any required `python_packages` to start the server. The Python dependencies can be found on the Nix search website, although most of these Python packages have the same name as in Nixpkgs.
+  - `run_command` specifies the command to run the server application.
 
-## Quick usage
 
-From a case directory (e.g. a copied template):
+### Custom VMs block
+
+```yaml
+vm:
+  custom_vms:
+    <name>:
+      config_path: vm-configs/<name>.nix
+      networking:
+        inbound_guest_ports: ...
+        inbound_host_ports: ...
+        outbound_guest_ports: ...
+        outbound_host_ports: ...
+```
+
+Each node under `vm.custom_vms.<name>` defines a custom VM configuration with the hostname `<name>`. This is useful for more complex scenarios that require more than 2 VMs or different types of interactions between the VMs. 
+
+Currently, the custom VMs only support networking configuration that is similar to the client and attacker blocks, but with both inbound and outbound port forwarding options available. The `config_path` field allows extending the default VM configuration for each custom VM using NixOS configurations.
+
+## Test script block
+
+```yaml
+test_script_path: test-script.py
+test_script:
+  - wait:
+      machine: attacker
+      type: port
+      port: 8080
+  - run:
+      machine: client
+      command: curl http://attacker:8080
+      timeout: 60
+  - assert:
+      type: check-file-contains
+      machine: client
+      file_path: /var/log/server.log
+      content: "Error occurred"
+```
+
+- `test_script_path` is an optional field that overrides the `test_script` block with a custom test script located at the specified path (`test-script.py` by default).
+- The `test_script` block defines the steps to validate the vulnerability. Each step is an action that can be either `wait`, `run`, or `assert`:
+  - `wait` allows waiting for a certain condition to be met before proceeding to the next step. Types of wait actions:
+    ```yaml
+    - wait: # wait for a port to be open
+        machine: <machine-name>
+        type: port
+        port: <port-number>
+    - wait: # wait for a service to be active
+        machine: <machine-name>
+        type: service  # or 'unit'
+        service_name: <service-name>
+    - wait: # wait for a file to exist in the provided path
+        machine: <machine-name>
+        type: file
+        path: <file-path>
+    ```
+  - `run` allows running a command on a specified machine with an optional timeout.
+    ```yaml
+    - run:
+      machine: <machine-name>
+      command: <command-to-run>
+      timeout: <timeout-in-seconds> # optional, default is 60 seconds
+    ```
+  - `assert` allows making assertions to validate the vulnerability. Multiple assertion types are supported:
+    ```yaml
+    # Check if a specific file exists or not
+    - assert:
+        type: check-file-exists
+        machine: <machine-name>
+        file_path: <path-to-file>
+        is_existing: <true|false>  # optional, default is true
+        timeout: <timeout-in-seconds>  # optional, default is 90
+
+    # Check if a specific file contains the expected content
+    - assert:
+        type: check-file-contains
+        machine: <machine-name>
+        file_path: <path-to-file>
+        content: <expected-content>
+        timeout: <timeout-in-seconds>  # optional, default is 90
+
+    # Check if a specific file size equals the expected size
+    - assert:
+        type: check-file-size-equals
+        machine: <machine-name>
+        file_path: <path-to-file>
+        expected_size: <size-in-bytes>
+        timeout: <timeout-in-seconds>  # optional, default is 90
+    # Check if a specific message appears in the systemd service logs
+    - assert:
+        type: check-service-log-contains
+        machine: <machine-name>
+        unit: <service-unit-name>
+        check_message: <expected-message>
+        failed_message: <custom-failure-message>  # optional
+
+    # Check if a core dump file is generated with the expected signal number
+    - assert:
+        type: check-core-dump-exists
+        machine: <machine-name>
+        expected_signal: <signal-number>
+        unit_name: <service-unit-name>  # optional, default is "backdoor.service"
+        repeats: <number-of-retries>  # optional, default is 10
+        repeat_command: <command-to-trigger-crash>  # optional
+
+    # Check if the memory usage of a command exceeds a certain threshold
+    - assert:
+        type: check-memory-usage-high
+        machine: <machine-name>
+        command: <command-to-run>
+        maximum_memory_bytes: <max-memory-in-bytes>
+
+    # Check if CPU time of a command exceeds a certain threshold
+    - assert:
+        type: check-cpu-usage-high
+        machine: <machine-name>
+        command: <command-to-run>
+        maximum_cpu_time_secs: <max-cpu-time-in-seconds>
+
+    # Check if the execution time of a command is within a certain range
+    - assert:
+        type: check-exact-execution-time
+        machine: <machine-name>
+        command: <command-to-run>
+        expected_time: <time-in-seconds>
+        repeats: <number-of-runs>  # optional, default is 5
+        tolerance: <tolerance-in-seconds>  # optional, default is 0.5
+
+    # Check if a user has root privileges
+    - assert:
+        type: check-root-gid
+        machine: <machine-name>
+        user: <username>
+    ```
+
+## Direct use (without the helper script)
+
+This can be helpful for debugging or if you want more control over the VM management and test execution.
+From a case directory:
 
 ```bash
-nix build .#vmClient
-nix build .#testVulnerableTrue.driver
+# Show all possible targets
+nix flake show
+
+# Start the VMs
+nix run .#vmClient
+
+# Run the test script
+nix run .#testVulnerableTrue.driver
+# For interactive mode
+nix run .#testVulnerableFalse.driverInteractive
 ```
 
 ## Notes
@@ -116,3 +338,5 @@ nix build .#testVulnerableTrue.driver
 - Keep port list lengths aligned (guest and host) for each direction.
 - Prefer `cve.yaml` for new cases.
 - Use `vm-configs/*.nix` for service/runtime customization instead of bloating descriptor fields.
+- NixOS configurations syntax can be found at: https://search.nixos.org/options 
+- More on NixOS testing framework at: https://nixos.org/manual/nixos/stable/index.html#sec-nixos-tests 
