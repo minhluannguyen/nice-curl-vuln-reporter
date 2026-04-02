@@ -11,20 +11,6 @@ let
     else null;
   customClientConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
 
-  # networking configuration
-  normalizePorts = ports: if builtins.isList ports then ports else [ ports ];
-
-  outboundGuestPortsRaw =
-    if clientCfg ? networking && clientCfg.networking ? outbound_guest_ports then clientCfg.networking.outbound_guest_ports
-    else null;
-
-  outboundHostPortsRaw =
-    if clientCfg ? networking && clientCfg.networking ? outbound_host_ports then clientCfg.networking.outbound_host_ports
-    else null;
-
-  outboundGuestPorts = if outboundGuestPortsRaw == null then [] else normalizePorts outboundGuestPortsRaw;
-  outboundHostPorts = if outboundHostPortsRaw == null then [] else normalizePorts outboundHostPortsRaw;
-
   # Fetch curl package from provided nixpkgs commit
   mkCurlFromTarball = info:
     let
@@ -35,15 +21,38 @@ let
           sha256 = info.sha256;
         }
       else
-        # In --impure mode
-        # builtins.fetchTarball tarballUrl;
         builtins.fetchTarball {
           url = tarballUrl;
           sha256 = "";
         };
       importedPkgs = import tarball { inherit system; };
+      curlPkgs = if importedPkgs ? curlFull then importedPkgs.curlFull else importedPkgs.curl;
     in
-      if importedPkgs ? curlFull then importedPkgs.curlFull else importedPkgs.curl;
+      curlPkgs.override(
+        lib.filterAttrs (k: v: v != null) {
+          opensslSupport = 
+            if info ? tls_backend then
+              if info.tls_backend == "openssl" then true else if info.tls_backend != "wolfssl" && info.tls_backend != "gnutls" && info.tls_backend != "rustls" then throw "Unknown TLS backend specified in curl package configuration: ${info.tls_backend}" else false
+            else null;
+          wolfsslSupport = if info ? tls_backend && info.tls_backend == "wolfssl" then true else null;
+          gnutlsSupport = if info ? tls_backend && info.tls_backend == "gnutls" then true else null;
+          rustlsSupport = if info ? tls_backend && info.tls_backend == "rustls" then true else null;
+
+          brotliSupport = if info ? with_brotli then info.with_brotli else null;
+          c-aresSupport = if info ? with_ares then info.with_ares else null;
+          gsaslSupport = if info ? with_gsasl then info.with_gsasl else null;
+          http2Support = if info ? with_nghttp2 then info.with_nghttp2 else null;
+          http3Support = if info ? with_http3 then info.with_http3 else null;
+          websocketSupport = if info ? with_websocket then info.with_websocket else null;
+          idnSupport = if info ? with_idn then info.with_idn else null;
+          ldapSupport = if info ? with_ldap then info.with_ldap else null;
+          pslSupport = if info ? with_psl then info.with_psl else null;
+          rtmpSupport = if info ? with_rtmp then info.with_rtmp else null;
+          scpSupport = if info ? with_scp then info.with_scp else null;
+          zlibSupport = if info ? with_zlib then info.with_zlib else null;
+          zstdSupport = if info ? with_zstd then info.with_zstd else null;
+        }
+      );
 
   curlVulnerable =
     if curlCfg ? strategy && curlCfg.strategy == "nixpkgs" && curlCfg ? package then mkCurlFromTarball curlCfg.package
@@ -54,12 +63,12 @@ let
         url = curlCfg.package.url;
         sha256 = curlCfg.package.sha256;
         tlsBackend = curlCfg.package.tls_backend or "openssl";
+        withNghttp2 = curlCfg.package.with_nghttp2 or true;
         withZlib = curlCfg.package.with_zlib or true;
         withLibpsl = curlCfg.package.with_libpsl or true;
         withBrotli = curlCfg.package.with_brotli or false;
         withZstd = curlCfg.package.with_zstd or false;
         withLibidn2 = curlCfg.package.with_libidn2 or false;
-        withNghttp2 = curlCfg.package.with_nghttp2 or false;
         enableShared = curlCfg.package.enable_shared or true;
         enableDebug = curlCfg.package.enable_debug or false;
         doCheck = curlCfg.package.do_check or false;
@@ -106,21 +115,6 @@ in
   (import ./vm-template-instance.nix {
     inherit isTest;
     fixedConfig = {
-      virtualisation.forwardPorts =
-        if isTest || outboundGuestPorts == [] || outboundHostPorts == [] then
-          []
-        else if builtins.length outboundGuestPorts != builtins.length outboundHostPorts then
-          throw "client outbound_guest_ports and outbound_host_ports must have the same number of entries"
-        else
-          builtins.genList
-            (index: {
-              from = "guest";
-              guest.address = clientCfg.networking.outbound_guest_address or "10.0.2.10";
-              guest.port = builtins.elemAt outboundGuestPorts index;
-              host.address = "127.0.0.1";
-              host.port = builtins.elemAt outboundHostPorts index;
-            })
-            (builtins.length outboundGuestPorts);
       environment.systemPackages = [ pkgs.code ] 
       ++ ([ curlVulnerable ])
       ++ (if startClientScript != null then [ startClientScript ] else []);

@@ -1,6 +1,13 @@
 { lib }:
 
 let
+  mkEscapedCommand = command: 
+    lib.pipe command [
+      (s: lib.replaceStrings ["\\"] ["\\\\"] s)
+      (s: lib.replaceStrings ["\""] ["\\\""] s)
+      (s: lib.replaceStrings ["$"] ["\\$"] s)
+    ];
+
   # Translate a single action
   translateAction = action:
     let
@@ -33,14 +40,10 @@ let
       timeout = config.timeout or 60;
       # Escape special characters for Python string: quotes, backslashes, dollar signs
       # First escape backslashes, then quotes, then dollar signs
-      escapedCommand = lib.pipe command [
-        (s: lib.replaceStrings ["\\"] ["\\\\"] s)
-        (s: lib.replaceStrings ["\""] ["\\\""] s)
-        (s: lib.replaceStrings ["$"] ["\\$"] s)
-      ];
+      escapedCommand = mkEscapedCommand command;
     in
       ''
-        print("STEP: Running command on ${machine}: ${command}")
+        print("STEP: Running command on ${machine}: ${escapedCommand}")
         stdout = ${machine}.execute("${escapedCommand}", timeout=${toString timeout})
         print(stdout[1])  
         print("EXIT CODE: " + str(stdout[0]))
@@ -99,18 +102,20 @@ let
       else if waitType == "command-success" then
         let
           command = config.command or (throw "wait action with type 'command' requires 'command' field");
+          escapedCommand = mkEscapedCommand command;
         in
           ''
             print("STEP: Waiting for command to succeed on ${machine}")
-            ${machine}.wait_until_succeeds("${command}", timeout=${toString timeout})
+            ${machine}.wait_until_succeeds("${escapedCommand}", timeout=${toString timeout})
           ''
       else if waitType == "command-fail" then
         let
           command = config.command or (throw "wait action with type 'command' requires 'command' field");
+          escapedCommand = mkEscapedCommand command;
         in
           ''
             print("STEP: Waiting for command to fail on ${machine}")
-            ${machine}.wait_until_fails("${command}", timeout=${toString timeout})
+            ${machine}.wait_until_fails("${escapedCommand}", timeout=${toString timeout})
           ''
       else
         throw "Unknown wait type: ${waitType}";
@@ -133,7 +138,6 @@ let
         print("ASSERTION: ${assertType} on ${machine}")
         ${assertionBlock}
       '';
-
 in
 {
   testYAML2Script = testScriptYaml:

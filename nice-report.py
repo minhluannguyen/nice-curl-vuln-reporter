@@ -500,7 +500,7 @@ def start_scenario():
         error("No valid reports found")
     
     cases.append("Cancel")
-    selected = select_menu("Select report to view VMs:", cases)
+    selected = select_menu("Select report to start scenario:", cases)
     
     if selected == "Cancel":
         show_main_menu()
@@ -672,8 +672,8 @@ def show_main_menu():
         [
             "Create new security report",
             "Update hashes for existing report",
-            "Manage VMs",
-            "Start scenario (interactive)",
+            # "Manage VMs",
+            "Start interactive scenario",
             "Run tests",
             "Exit"
         ]
@@ -683,9 +683,9 @@ def show_main_menu():
         create_security_report()
     elif choice == "Update hashes for existing report":
         update_hashes()
-    elif choice == "Manage VMs":
-        manage_vms()
-    elif choice == "Start scenario (interactive)":
+    # elif choice == "Manage VMs":
+    #     manage_vms()
+    elif choice == "Start interactive scenario":
         start_scenario()
     elif choice == "Run tests":
         run_tests()

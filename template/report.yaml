@@ -42,16 +42,11 @@ vm:
         build_file: client.c
         build_flags: ""
     {% endif -%}
-    networking:
-      outbound_guest_ports: [ 8080 ]
-      outbound_host_ports: [ 8080 ]
-      outbound_guest_address: 10.0.2.10
   {% endif -%}
   {% if vm_attack_pattern == "remote" -%}
   attacker:
     networking:
-      inbound_guest_ports: [ 8080 ]
-      inbound_host_ports: [ 8080 ]
+      allowed_tcp_ports: [ 8080 ]
     {% if is_attacker_server -%}
     server:
       # file_path: ./exploit/server
@@ -77,12 +72,7 @@ vm:
     proxy:
       config_path: ./vm-configs/proxy.nix
       networking:
-          # Inbound (host -> guest)
-          inbound_guest_ports: [10801]
-          inbound_host_ports: [10801]
-          # Outbound (guest -> host)
-          outbound_guest_ports: [18080]
-          outbound_host_ports: [18080]
+        allowed_tcp_ports: [ 8080 ]
   {% endif %}
 
 # Defaults to `./test-script.py` if not specified.
