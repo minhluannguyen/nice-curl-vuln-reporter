@@ -112,10 +112,7 @@ There are 2 main types of interactions supported in curl vulnerabilities:
 vm:
   client:
     config_path: vm-configs/client.nix
-    networking:
-      outbound_guest_ports: 8080
-      outbound_host_ports: 8080
-      outbound_guest_address: 10.0.2.10
+    # Only for libcurl vulnerabilities with the "library" target
     application:
       file_path: ./exploit/client
       build_config:
@@ -125,17 +122,6 @@ vm:
 
 - `config_path` is optional to allow extending the default VM configuration for the client machine using NixOS configurations. If not provided, a default configuration (`vm-configs/client.nix`) will be used if the file exists.
 
-- `networking` defines the port forwarding configuration for the client VM.
-The client machine only allows outbound forwarding, so it supports `outbound_guest_ports` and `outbound_host_ports` to map the guest ports on the VM to the host ports on host machine.
-
-The `outbound_guest_address` field is used to specify the host address that the guest will use to connect to the attacker.
-
-Both port fields accept either:
-
-- a single integer (e.g. `8080`)
-- a list of integers (e.g. `[8080, 8081]`)
-
-This will soon be replaced.
 
 - `application` is enabled when the curl's target is `library` and allows to specify a custom application that uses the vulnerable libcurl component.
   - `file_path` points to the application source code in the `exploit/` directory. By default, it takes all the files in the `exploit/client/` directory.
@@ -150,8 +136,7 @@ vm:
   attacker:
     config_path: vm-configs/attacker.nix
     networking:
-      inbound_guest_ports: 8080
-      inbound_host_ports: 8080
+      allowed_tcp_ports: [ 8080 ]
     server:
       file_path: ./exploit/server
       service_name: "maliciousServer"
@@ -170,16 +155,19 @@ vm:
       run_command: python3 exploit-server.py
 ```
 
-- Similar to the client block, `config_path` allows extending the default VM configuration for the attacker machine. If not provided, a default configuration (`vm-configs/attacker.nix`) will be used if the file exists.
-- `networking` for the attacker machine only allows inbound forwarding, so it supports `inbound_guest_ports` and `inbound_host_ports` to map the guest ports on the VM to the host ports on host machine.
+- Similar to the client block, `config_path` (*optional*) allows extending the default VM configuration for the attacker machine. If not provided, a default configuration (`vm-configs/attacker.nix`) will be used if the file exists.
+- `networking` for the attacker machine only allows inbound forwarding, so it specifies the `allowed_tcp_ports` that the attacker server will be listening on to receive incoming connections from the client VM.
 - `server` defines the server application that simulates the attacker's malicious server to exploit the curl client. It supports both C and Python applications with different build configurations.
-  - `file_path` points to the server application source code in the `exploit/` directory. By default, it takes all the files in the `exploit/attacker/` directory.
-  - `service_name` is an optional field that specifies the name of the systemd service to run the server. If not provided, the default service name `maliciousServer` will be used. This is useful for cases where the server needs to be running before the test script starts, as it allows waiting for the service to be active before executing the attack command in the test script.
+  - `file_path` (*optional*): points to the server application source code in the `exploit/` directory. By default, it takes all the files in the `exploit/attacker/` directory.
+  - `service_name` (*optional*): field that specifies the name of the systemd service to run the server. If not provided, the default service name `maliciousServer` will be used. This is useful for cases where the server needs to be running before the test script starts, as it allows waiting for the service to be active before executing the attack command in the test script.
   - `wait_in_test_script` is a boolean flag that indicates whether the test script should automatically wait for the server to be ready before continuing.
   - For C applications, specify the `build_config` with `build_inputs` for any dependencies needed during compilation, `build_commands` for the commands to build the server, and `build_output` for the name of the output executable.
   - For Python applications, specify the `python_version`, any required `python_packages` to start the server. The Python dependencies can be found on the Nix search website, although most of these Python packages have the same name as in Nixpkgs.
   - `run_command` specifies the command to run the server application.
 
+Port fields accept either:
+- a single integer (e.g. `8080`)
+- a list of integers (e.g. `[8080, 8081]`)
 
 ### Custom VMs block
 
@@ -189,15 +177,12 @@ vm:
     <name>:
       config_path: vm-configs/<name>.nix
       networking:
-        inbound_guest_ports: ...
-        inbound_host_ports: ...
-        outbound_guest_ports: ...
-        outbound_host_ports: ...
+      allowed_tcp_ports: [ ... ]
 ```
 
 Each node under `vm.custom_vms.<name>` defines a custom VM configuration with the hostname `<name>`. This is useful for more complex scenarios that require more than 2 VMs or different types of interactions between the VMs. 
 
-Currently, the custom VMs only support networking configuration that is similar to the client and attacker blocks, but with both inbound and outbound port forwarding options available. The `config_path` field allows extending the default VM configuration for each custom VM using NixOS configurations.
+The custom VM configuration allows both receiving and sending traffic, so it specifies `allowed_tcp_ports` to allow inbound traffic to the VM similarly to the attacker block, but it also allows outbound traffic to any port by default. 
 
 ## Test script block
 
@@ -335,8 +320,8 @@ nix run .#testVulnerableFalse.driverInteractive
 
 ## Notes
 
-- Keep port list lengths aligned (guest and host) for each direction.
 - Prefer `cve.yaml` for new cases.
 - Use `vm-configs/*.nix` for service/runtime customization instead of bloating descriptor fields.
+- Every VM is extensible with custom NixOS configurations, using the `config_path` field to point to a Nix file with additional configurations. This allows for more complex scenarios and customizations without overcomplicating the YAML descriptor. The same applies for the test script, where you can provide a custom test script with the `test_script_path` field.
 - NixOS configurations syntax can be found at: https://search.nixos.org/options 
 - More on NixOS testing framework at: https://nixos.org/manual/nixos/stable/index.html#sec-nixos-tests 
