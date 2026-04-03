@@ -10,7 +10,17 @@ let
     else if builtins.pathExists defaultConfigPath then defaultConfigPath
     else null;
   customAttackerConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
-  
+
+  diskImagePath = if attackerCfg ? disk_image_path then "/${attackerCfg.disk_image_path}" else null;
+  isRetrictNetwork = 
+    if attackerCfg ? internet_access then
+      if !(attackerCfg.internet_access == true || attackerCfg.internet_access == false) then
+        throw "Invalid value for internet_access configuration, expected boolean but got: ${toString attackerCfg.internet_access}"
+      else if attackerCfg.internet_access then
+        builtins.warn "Attacker VM is configured to have internet access which may cause unintended vulnerabilities to be exposed in the test environment." false
+      else true
+    else true;
+
   # Network port configuration
   normalizePorts = ports: if builtins.isList ports then ports else [ ports ];
   allowedTCPPortsRaw =
@@ -74,7 +84,7 @@ let
   else null;
 in
   (import ./vm-template-instance.nix {
-    inherit isTest;
+    inherit isTest diskImagePath isRetrictNetwork;
     hostName = "attacker";
     fixedConfig = {
       networking.firewall.allowedTCPPorts = allowedTCPPorts;

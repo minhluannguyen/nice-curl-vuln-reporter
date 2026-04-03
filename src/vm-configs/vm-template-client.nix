@@ -11,6 +11,16 @@ let
     else null;
   customClientConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
 
+  diskImagePath = if clientCfg ? disk_image_path then "/${clientCfg.disk_image_path}" else null;
+  isRetrictNetwork = 
+    if clientCfg ? internet_access then
+      if !(clientCfg.internet_access == true || clientCfg.internet_access == false) then
+        throw "Invalid value for internet_access configuration, expected boolean but got: ${toString clientCfg.internet_access}"
+      else if clientCfg.internet_access then
+        builtins.warn "Client VM is configured to have internet access which may cause unintended vulnerabilities to be exposed in the test environment." false
+      else true
+    else true;
+
   # Fetch curl package from provided nixpkgs commit
   mkCurlFromTarball = info:
     let
@@ -113,13 +123,13 @@ let
   '' else null;
 in
   (import ./vm-template-instance.nix {
-    inherit isTest;
+    inherit isTest diskImagePath isRetrictNetwork;
+    hostName = "client";
     fixedConfig = {
       environment.systemPackages = [ pkgs.code ] 
       ++ ([ curlVulnerable ])
       ++ (if startClientScript != null then [ startClientScript ] else []);
       # ++ (if isVulnerable then [ curlVulnerable ] else [ curlPatched ]);
     };
-      hostName = "client";
     customConfig = customClientConfig;
   }) { inherit config pkgs lib modulesPath; }

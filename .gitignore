@@ -1,3 +1,4 @@
+!disks/*.qcow2
 *.qcow2
 result
 result-*

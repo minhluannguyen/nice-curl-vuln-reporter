@@ -42,7 +42,7 @@ vm:
         build_file: client.c
         build_flags: ""
     {% endif -%}
-  {% endif -%}
+  {% endif %}
   {% if vm_attack_pattern == "remote" -%}
   attacker:
     networking:
@@ -71,6 +71,8 @@ vm:
   custom_vms:
     proxy:
       config_path: ./vm-configs/proxy.nix
+    # disk_image_path: "client-disk-image.qcow2"
+    # internet_access: false
       networking:
         allowed_tcp_ports: [ 8080 ]
   {% endif %}

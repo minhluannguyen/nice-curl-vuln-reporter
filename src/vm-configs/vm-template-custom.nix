@@ -9,6 +9,18 @@ let
     else if builtins.pathExists defaultConfigPath then defaultConfigPath
     else null;
   customMachineConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
+
+  diskImagePath = if customMachineCfg ? disk_image_path then "/${customMachineCfg.disk_image_path}" else null;
+  isRetrictNetwork = 
+    if customMachineCfg ? internet_access then
+      if !(customMachineCfg.internet_access == true || customMachineCfg.internet_access == false) then
+        throw "Invalid value for internet_access configuration, expected boolean but got: ${toString customMachineCfg.internet_access}"
+      else if customMachineCfg.internet_access then
+        builtins.warn "VM ${hostname} is configured to have internet access which may cause unintended vulnerabilities to be exposed in the test environment." false
+      else true
+    else true;
+
+  # Networking configuration
   normalizePorts = ports: if builtins.isList ports then ports else [ ports ];
   allowedTCPPortsRaw =
     if customMachineCfg ? networking && customMachineCfg.networking ? allowed_tcp_ports then customMachineCfg.networking.allowed_tcp_ports
@@ -16,7 +28,7 @@ let
   allowedTCPPorts = if allowedTCPPortsRaw == null then [] else normalizePorts allowedTCPPortsRaw;
 in
   (import ./vm-template-instance.nix {
-    inherit isTest;
+    inherit isTest diskImagePath isRetrictNetwork;
     hostName = hostname;
     fixedConfig = {
       networking.firewall.allowedTCPPorts = allowedTCPPorts;

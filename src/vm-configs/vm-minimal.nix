@@ -1,4 +1,4 @@
-{ isTest, hostName }:
+{ isTest, hostName, diskImagePath, isRetrictNetwork ? true }:
 { pkgs, lib, modulesPath, ... }:
 
 let
@@ -13,6 +13,9 @@ in
 
   virtualisation.graphics = false;
 
+  virtualisation.diskImage = if diskImagePath != null then "${diskImagePath}" else null;
+
+  virtualisation.restrictNetwork = isRetrictNetwork;
 
   networking.hostName = hostName;
 
