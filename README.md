@@ -45,7 +45,7 @@ pip install -r requirements.txt
 
 1) Create new security report
 2) Update hashes for existing report
-3) Manage VMs
+3) Start interactive scenario
 4) Run tests
 5) Exit
 What would you like to do? 
@@ -53,8 +53,9 @@ What would you like to do?
 
 1) Create new security report: Creates a new vulnerability report from a template after asking a series of questions.
 2) Update hashes for existing report: Updates the nix hashes in the `report.yaml` file for a given case. If the case uses the `nixpkgs` strategy, it will update the `commit` and `sha256` fields. If the case uses the `source` strategy, it will update the `hash` field.
-3) Manage VMs: Provides options for managing the VMs.
-4) Run tests: Provides options for running the tests for a given case.
+3) Start interactive scenario: automatically builds and sets up all the necessary VMs for a given vulnerability report and starts an interactive session where the user can manually run commands on the VMs.
+4) Run tests: Provides options for running the tests for a given case or all cases in the `reports/` directory.
+5) Exit: Exits the script.
 
 ## YAML report file
 
