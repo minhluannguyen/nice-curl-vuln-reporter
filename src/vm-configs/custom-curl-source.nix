@@ -12,8 +12,8 @@
 , enableShared ? true
 , enableDebug ? false
 , doCheck ? false
-, disabledProtocols ? []   # e.g. [ "ftp" "ldap" "rtsp" ]
-, disabledFeatures ? []    # e.g. [ "proxy" "cookies" "ipv6" ]
+, disabledProtocols ? []   # e.g. [ "aws" "basic-auth" " bearer-auth" ]
+, disabledFeatures ? []    # e.g. [ "feature1" "feature2" ] (currently unused, reserved for future)
 , extraConfigureFlags ? []
 }:
 
@@ -46,7 +46,6 @@ let
     ++ lib.optional (!enableShared) "--disable-shared"
     ++ lib.optional enableDebug "--enable-debug"
     ++ map (p: "--disable-${p}") disabledProtocols
-    ++ map (f: "--disable-${f}") disabledFeatures
     ++ extraConfigureFlags;
 in
 stdenv.mkDerivation {

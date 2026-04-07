@@ -6,6 +6,7 @@ let
       (s: lib.replaceStrings ["\\"] ["\\\\"] s)
       (s: lib.replaceStrings ["\""] ["\\\""] s)
       (s: lib.replaceStrings ["$"] ["\\$"] s)
+      (s: lib.replaceStrings ["\'"] ["\\\'"] s)
     ];
 
   # Translate a single action
@@ -36,17 +37,32 @@ let
   translateRun = config:
     let
       machine = config.machine or (throw "run action requires 'machine' field");
+      isAllowedFail = config.allowed_fail or false;
+      expectedExitCodes = if isAllowedFail then config.expected_exit_codes or null else null;
       command = config.command or (throw "run action requires 'command' field");
       timeout = config.timeout or 60;
       # Escape special characters for Python string: quotes, backslashes, dollar signs
       # First escape backslashes, then quotes, then dollar signs
       escapedCommand = mkEscapedCommand command;
+      # Format expected exit codes as Python list
+      formattedExitCodes = if expectedExitCodes != null then "[${lib.concatStringsSep ", " (map toString expectedExitCodes)}]" else null;
     in
       ''
         print("STEP: Running command on ${machine}: ${escapedCommand}")
-        stdout = ${machine}.execute("${escapedCommand}", timeout=${toString timeout})
-        print(stdout[1])  
-        print("EXIT CODE: " + str(stdout[0]))
+        ${if isAllowedFail then "print('Note: This command is allowed to fail with exit codes: ${formattedExitCodes}')" else ""}
+        ${if !isAllowedFail then 
+          "${machine}.succeed(\"${escapedCommand}\", timeout=${toString timeout})" 
+        else 
+          if expectedExitCodes == null then
+            "${machine}.fail(\"${escapedCommand}\", timeout=${toString timeout})"
+          else  
+          ''
+            stdout = ${machine}.execute("${escapedCommand}", timeout=${toString timeout})
+            if stdout[0] not in ${formattedExitCodes}:
+              raise Exception(f"Command on ${machine} failed with unexpected exit code: {stdout[0]}. Output: {stdout[1]}")
+            print("EXIT CODE: " + str(stdout[0]))
+          ''
+        }
       '';
 
   # Translate 'wait' action - waits for conditions (port, service, file, etc)
@@ -133,9 +149,17 @@ let
       assertionBlock = mkAssertion config;
       assertType = config.name or (throw "assert action requires 'name' field");
       machine = config.machine or (throw "assert action requires 'machine' field");
+
+      escapedRationale = if config.params ? rational then mkEscapedCommand config.params.rational else null;
     in
       ''
         print("ASSERTION: ${assertType} on ${machine}")
+        ${if assertType == "check-command-result-status" then
+            if !config.params ? rational then 
+              throw "Assert action with type 'check-command-result-status' requires 'rational' field in params to explain the rationale for this assertion."
+            else "print(\"Rationale: ${escapedRationale}\")"
+          else ""
+        }
         ${assertionBlock}
       '';
 in

@@ -71,7 +71,7 @@ let
         inherit pkgs;
         version = curlCfg.package.version;
         url = curlCfg.package.url;
-        sha256 = curlCfg.package.sha256;
+        sha256 = curlCfg.package.hash;
         tlsBackend = curlCfg.package.tls_backend or "openssl";
         withNghttp2 = curlCfg.package.with_nghttp2 or true;
         withZlib = curlCfg.package.with_zlib or true;

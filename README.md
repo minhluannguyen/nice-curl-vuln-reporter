@@ -95,6 +95,48 @@ curl:
 
 - Both options also support build-time configuration flags (under development).
 
+### `curl` build flags
+
+Curl supports many build configurations that can be specified with different flags during the build process. These options can be enabled in the `report.yaml` using these fields:
+
+```yaml
+curl:
+  ...
+  # strategy: nixpkgs
+  package:
+  ...
+  tls_backend: <openssl|wolfssl|gnutls|rustls> # optional, default is openssl
+  with_brotli: <true|false> # optional, default is false
+  with_ares: <true|false> # optional, default is false
+  with_gsasl: <true|false> # optional, default is false
+  with_http2: <true|false> # optional, default is true
+  with_http3: <true|false> # optional, default is false
+  with_websocket: <true|false> # optional, default is false
+  with_idn: <true|false> # optional, default is false
+  with_ldap: <true|false> # optional, default is false
+  with_psl: <true|false> # optional, default is false
+  with_rtmp: <true|false> # optional, default is false
+  with_scp: <true|false> # optional, default is true
+  with_zlib: <true|false> # optional, default is true
+  with_zstd: <true|false> # optional, default is false
+
+  # strategy: source
+  package:
+  ...
+  tls_backend: <openssl|wolfssl|gnutls|rustls> # optional, default is openssl
+  with_nghttp2: <true|false> # optional, default is true
+  with_zlib: <true|false> # optional, default is true
+  with_libpsl: <true|false> # optional, default is false
+  with_brotli: <true|false> # optional, default is false
+  with_zstd: <true|false> # optional, default is false
+  with_libidn2: <true|false> # optional, default is false
+  enable_shared: <true|false> # optional, default is true
+  enable_debug: <true|false> # optional, default is false
+  do_check: <true|false> # optional, default is false
+  disable_protocols: [ <protocol1>, ... ] # optional, list of protocols to disable, e.g. [ "aws", "basic-auth" ]
+  extra_configure_flags: [ <extra-configure-flag1>, ... ] # optional
+```
+
 
 ## `vm` block
 
@@ -231,12 +273,24 @@ test_script:
         machine: <machine-name>
         type: file
         path: <file-path>
+    - wait: # wait for a command to succeed
+        machine: <machine-name>
+        type: command-success
+        command: <command-to-wait-for-success>
+        timeout: <timeout-in-seconds>
+    - wait: # wait for a command to fail
+        machine: <machine-name>
+        type: command-fail
+        command: <command-to-wait-for-failure>
+        timeout: <timeout-in-seconds>
     ```
   - `run` allows running a command on a specified machine with an optional timeout.
     ```yaml
     - run:
       machine: <machine-name>
       command: <command-to-run>
+      allowed_fail: <true|false> # optional, default is false
+      expected_exit_codes: [ <list-of-expected-exit-codes> ] # optional, if allowed_fail is true but not provided, it defaults to allow any non-zero exit code.
       timeout: <timeout-in-seconds> # optional, default is 60 seconds
     ```
   - `assert` allows making assertions to validate the vulnerability. Multiple assertion types are supported:
@@ -309,6 +363,16 @@ test_script:
         type: check-root-gid
         machine: <machine-name>
         user: <username>
+
+    # Check if a command is successfully/unsuccessfully executed with expected exit codes
+    - assert:
+        type: check-command-result-status
+        machine: <machine-name>
+        command: <command-to-run>
+        allowed_fail: <true|false>  # optional, default is false
+        expected_exit_codes: [ <list-of-expected-exit-codes> ]  # optional, if allowed_fail is true but not provided, it defaults to allow any non-zero exit code.
+        rational: <rationale-for-assertion>  # a brief explanation of why this assertion is relevant for validating the vulnerability
+        timeout: <timeout-in-seconds>  # optional, default is 60 seconds
     ```
 
 ## Direct use (without the helper script)
