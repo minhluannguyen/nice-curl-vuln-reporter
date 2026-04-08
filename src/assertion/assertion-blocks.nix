@@ -1,14 +1,14 @@
 {
-    check-service-log-contains = { machine, check_message, unit, failed_message ? "" }: ''
+    check-service-log-contains = { machine, check_message, unit, failed_message ? "", timeout ? 60 }: ''
         print("ASSERTION BLOCK: check_service_log_contains")
-        def check_service_log_contains(machine, check_message, unit, failed_message=""):
+        def check_service_log_contains(machine, check_message, unit, failed_message="", timeout=60):
             failed_msg_display = f"Error checking journalctl logs for unit {unit}: {failed_message}" if failed_message else f"Failed to find \'{check_message}\' in the output"
 
-            stdout = ${machine}.wait_until_succeeds(f"journalctl -u {unit} --no-pager | grep \"{check_message}\" -A 10 -B 10 --color", timeout=60)
+            stdout = ${machine}.wait_until_succeeds(f"journalctl -u {unit} -o cat | grep \"{check_message}\" -A 10 -B 10 --color", timeout=timeout)
             print(stdout)
             assert f"{check_message}" in stdout, failed_msg_display
 
-        check_service_log_contains(${machine}, "${check_message}", "${unit}", "${failed_message}")
+        check_service_log_contains(${machine}, "${check_message}", "${unit}", "${failed_message}", ${toString timeout})
     '';
 
     check-root-gid = { machine, user }: ''
@@ -21,7 +21,7 @@
         check_root_gid(${machine}, "${user}")
     '';
 
-    check-file-exists = { machine, file_path, is_existing ? true, timeout ? 90 }: ''
+    check-file-exists = { machine, file_path, is_existing ? true, timeout ? 60 }: ''
         print("ASSERTION BLOCK: check_file_exists (expecting file to be ${if is_existing then "present" else "absent"})")
 
         if "check_file_exists" not in dir():
@@ -40,7 +40,7 @@
         check_file_exists(${machine}, "${file_path}", ${if is_existing then "True" else "False"}, ${toString timeout})
     '';
 
-    check-file-contains = { machine, file_path, content, timeout ? 90 }: ''
+    check-file-contains = { machine, file_path, content, timeout ? 60 }: ''
         print("ASSERTION BLOCK: check_file_contains")
 
         def check_file_contains(machine, file_path, content, timeout):
@@ -60,7 +60,7 @@
         check_file_contains(${machine}, "${file_path}", "${content}", ${toString timeout})
     '';
 
-    check-file-size-equals = { machine, file_path, expected_size, timeout ? 90 }: ''
+    check-file-size-equals = { machine, file_path, expected_size, timeout ? 60 }: ''
         print("ASSERTION BLOCK: check_file_size_equals")
 
         def check_file_size_equals(machine, file_path, expected_size, timeout):

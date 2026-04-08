@@ -37,10 +37,15 @@ let
         ''
     else
       "";
+  
+  defaultCustomVMBlock = lib.concatMapStringsSep "\n" (nodeName: ''
+    ${nodeName}.wait_for_unit("multi-user.target")
+  '') customNodeNames;
 
   defaultWaitBlock = lib.concatStringsSep "\n" [
     defaultAttackerWaitBlock
     (if enableClient then "client.wait_for_unit(\"multi-user.target\")" else "")
+    defaultCustomVMBlock
   ];
 in
   pkgs.testers.runNixOSTest {

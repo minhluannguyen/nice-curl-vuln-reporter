@@ -40,14 +40,14 @@ assertionCfg:
         machine = assertionMachine;
         file_path = escapeQuotes ap.file_path;
         is_existing = ap.is_existing or true;
-        timeout = ap.timeout or 90;
+        timeout = ap.timeout or 60;
       }
     else if assertionType == "check-file-contains" then
       assertionBlocks.check-file-contains {
         machine = assertionMachine;
         file_path = escapeQuotes ap.file_path;
         content = escapeQuotes ap.content;
-        timeout = ap.timeout or 90;
+        timeout = ap.timeout or 60;
       }
     else if assertionType == "check-service-log-contains" then
       assertionBlocks.check-service-log-contains {
@@ -55,6 +55,7 @@ assertionCfg:
         check_message = escapeQuotes ap.check_message;
         unit = escapeQuotes ap.unit;
         failed_message = escapeQuotes (ap.failed_message or "");
+        timeout = ap.timeout or 60;
       }
     else if assertionType == "check-command-result-status" then
       assertionBlocks.check-command-result-status {

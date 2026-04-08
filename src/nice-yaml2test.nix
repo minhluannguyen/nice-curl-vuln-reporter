@@ -51,15 +51,16 @@ let
         print("STEP: Running command on ${machine}: ${escapedCommand}")
         ${if isAllowedFail then "print('Note: This command is allowed to fail with exit codes: ${formattedExitCodes}')" else ""}
         ${if !isAllowedFail then 
-          "${machine}.succeed(\"${escapedCommand}\", timeout=${toString timeout})" 
+          "print(${machine}.succeed(\"${escapedCommand}\", timeout=${toString timeout}))" 
         else 
           if expectedExitCodes == null then
-            "${machine}.fail(\"${escapedCommand}\", timeout=${toString timeout})"
+            "print(${machine}.fail(\"${escapedCommand}\", timeout=${toString timeout}))"
           else  
           ''
             stdout = ${machine}.execute("${escapedCommand}", timeout=${toString timeout})
             if stdout[0] not in ${formattedExitCodes}:
               raise Exception(f"Command on ${machine} failed with unexpected exit code: {stdout[0]}. Output: {stdout[1]}")
+            print(stdout[1])
             print("EXIT CODE: " + str(stdout[0]))
           ''
         }

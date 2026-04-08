@@ -91,7 +91,7 @@ test_script:
       command: curl http://attacker:8080
       timeout: 60
   - assert:
-      type: check-file-contains
+      name: check-file-contains
       machine: client
       file_path: /var/log/server.log
       content: "Error occurred"
@@ -109,7 +109,7 @@ test_script:
   #     command: test -f /tmp/ready
   #     timeout: 90
   # - assert:
-  #     type: check-memory-usage-high
+  #     name: check-memory-usage-high
   #     machine: client
   #     command: curl http://attacker:8080
   #     maximum_memory_bytes: 536870912
