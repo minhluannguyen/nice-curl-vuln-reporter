@@ -21,7 +21,7 @@ There are two strategies to specify the `curl` details:
 - `nixpkgs`: Fetch the `curl` package from Nixpkgs. This is the recommended way if there are no or very simple specific configuration options needed.
 - `source`: Build `curl` from source code. This fetches the source code from the specified URL and builds it with the specified configuration options.
 
-Nix approach values reproducibility and transparency, so it requires the exact version and hash of the `curl` package to be predefined. The provided CLI tool can help you fetch the correct hash for the `curl` automatically after the report template is generated or whenever you select the "Update hashes for existing report" option in the CLI tool.
+Nix approach values reproducibility and transparency, so it requires the exact version and hash of the `curl` package to be predefined. The provided CLI tool can help you fetch the correct hash for the `curl` version automatically after the report template is generated or whenever you select the "Update hashes for existing report" option in the CLI tool.
 
 ```yaml
 curl:
@@ -38,11 +38,11 @@ Configure build options can also be added using YAML's fields under `package`. C
 
 Refer to the above documentation for the configuration of the VMs. If more services are needed, you can add them in `vm-configs/` and create new VM configurations.
 
-The file name should be exactly the same as the name of the VM specified in the YAML report. Based on the similarity of the curl vulnerability, there are two VMs provided as templates:
-- `client`: in majority of the cases, the vulnerable `curl` is running on the client side. `curl` will be automatically installed on this VM based on the `curl` details specified in the report YAML file. In case of libcurl vulnerabilities, it allows an clien curl application to be set up on this VM.
-- `attacker`: if the `attack-vector` sets to `remote`, an attacker VM will be set up to simulate the remote attack. This VM allows the user to set up a malicious server to exploit the vulnerability.
+The file name should be exactly the same as the name of the VM specified in the YAML report. Based on the similarity of the curl vulnerabilities, there are two VMs provided as templates:
+- `client`: in a majority of cases, the vulnerable `curl` is running on the client. `curl` will be automatically installed on this VM based on the `curl` details specified in the report YAML file. In case of libcurl vulnerabilities, it allows a client curl application to be set up on this VM.
+- `attacker`: if the `attack-vector` is set to `remote`, an attacker VM will be set up to simulate the remote attack. This VM allows the user to set up a malicious server to exploit the vulnerability.
 
-Many services, software are available as [NixOS options](https://search.nixos.org/options). For example, this is how the OpenSMTPD service is set up in the server VM configuration file:
+Many services are available as [NixOS options](https://search.nixos.org/options). For example, this is how the OpenSMTPD service is set up in the server VM configuration file:
 
 ```nix
 # Set up OpenSMTPD service
@@ -122,7 +122,7 @@ in
 }
 ```
 
-It is also possible to compile source code and then be used in the VMs:
+It is also possible to compile source code to be used in the VMs:
 ```nix
 let
     clientApp = pkgs.stdenv.mkDerivation {
