@@ -65,8 +65,9 @@ let
       );
 
   curlVulnerable =
-    if curlCfg ? strategy && curlCfg.strategy == "nixpkgs" && curlCfg ? package then mkCurlFromTarball curlCfg.package
-    else if curlCfg ? strategy && curlCfg.strategy == "source" && curlCfg ? package then 
+    if !(curlCfg ? strategy) then throw "Curl configuration must specify a strategy for obtaining the vulnerable curl version"
+    else if curlCfg.strategy == "nixpkgs" && curlCfg ? package then mkCurlFromTarball curlCfg.package
+    else if curlCfg.strategy == "source" && curlCfg ? package then 
       import ./custom-curl-source.nix {
         inherit pkgs;
         version = curlCfg.package.version;
@@ -86,7 +87,8 @@ let
         disabledFeatures = curlCfg.package.disabled_features or [];
         extraConfigureFlags = curlCfg.package.extra_configure_flags or [];
       }
-    else throw "Invalid curl configuration strategy or missing package information";
+    else if curlCfg.strategy != "custom" then throw "Invalid curl configuration strategy or missing package information"
+    else null;
 
   # curlPatched =
   #   if curlCfg.strategy == "nixpkgs"
@@ -94,10 +96,10 @@ let
   #   else pkgs.curlFull;
 
   # User provided client application in case of library vulnerability
-  clientAppCfg = if clientCfg ? application then clientCfg.application else {};
+  clientAppCfg = if curlVulnerable != null && curlCfg.target == "library" then clientCfg.application or {} else {};
   # clientAppOutput = if clientAppCfg ? build_output then clientAppCfg.build_output else "client-app";
   curlPkgs = curlVulnerable;
-  clientApp = if curlCfg.target == "library" then pkgs.stdenv.mkDerivation {
+  clientApp = if curlCfg.target == "library" && clientAppCfg != {} then pkgs.stdenv.mkDerivation {
     pname = "vulnerable-client";
     version = "1.0";
     src = if clientAppCfg ? file_path then "${caseDir}/${clientAppCfg.file_path}" else "${caseDir}/exploit/client";
@@ -126,8 +128,8 @@ in
     inherit isTest diskImagePath isRetrictNetwork;
     hostName = "client";
     fixedConfig = {
-      environment.systemPackages = [ pkgs.code ] 
-      ++ ([ curlVulnerable ])
+      environment.systemPackages = [ ] 
+      ++ (if curlVulnerable != null then [ curlVulnerable ] else [])
       ++ (if startClientScript != null then [ startClientScript ] else []);
       # ++ (if isVulnerable then [ curlVulnerable ] else [ curlPatched ]);
     };
