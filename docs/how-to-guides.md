@@ -1,6 +1,6 @@
 # Reporting Guide for NICE cURL Vulnerability Reports
 
-This document provides notes and guidelines for writing vulnerability reports using the NICE cURL Vulnerability Report framework.
+This document provides guidelines for writing vulnerability reports using the NICE cURL Vulnerability Report framework.
 
 ## Getting Started
 

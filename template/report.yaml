@@ -39,7 +39,7 @@ vm:
     application:
       # file_path: ./exploit/client
       build_config:
-        build_file: client.c
+        source_file: client.c
         build_flags: ""
     {% endif -%}
   {% endif %}

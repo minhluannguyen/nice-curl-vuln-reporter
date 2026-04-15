@@ -105,7 +105,7 @@ let
     buildPhase = 
       let
         buildConfig = if clientAppCfg ? build_config then clientAppCfg.build_config else throw "client application configuration requires 'build_config' to be specified";
-        buildFile = if buildConfig ? build_file then "${buildConfig.build_file}" else throw "client application build configuration requires 'build_file' to be specified";
+        buildFile = if buildConfig ? source_file then "${buildConfig.source_file}" else throw "client application build configuration requires 'source_file' to be specified";
         buildFlags = if buildConfig ? build_flags && buildConfig.build_flags != null then "${buildConfig.build_flags}" else "";
       in ''
         gcc ${buildFile} -o client-app $(curl-config --cflags --libs) ${buildFlags}
