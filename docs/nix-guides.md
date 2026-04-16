@@ -13,26 +13,38 @@ NICE cURL vulnerability reports is basically a declarative description of the vu
 2) Environment details: description of the environment (NICE uses VMs to simulate the environment). Specifies which kind of services are running on the client, server, or custom VMs, and how they are networked together.
 3) Test scenarios: a sequence of actions to be performed on the environment, and assertions to check whether the vulnerability is successfully exploited. This test can also be viewed as instructions or step to reproduce the vulnerability but able to be automatically executed by the NICE framework.
 
-### Get `curl` details
+### Customize `curl` build
 
-It is important to specify the exact version of `curl` that is vulnerable, and the configuration options used to build it.
-
-There are two strategies to specify the `curl` details:
-- `nixpkgs`: Fetch the `curl` package from Nixpkgs. This is the recommended way if there are no or very simple specific configuration options needed.
-- `source`: Build `curl` from source code. This fetches the source code from the specified URL and builds it with the specified configuration options.
-
-Nix approach values reproducibility and transparency, so it requires the exact version and hash of the `curl` package to be predefined. The provided CLI tool can help you fetch the correct hash for the `curl` version automatically after the report template is generated or whenever you select the "Update hashes for existing report" option in the CLI tool.
+The third strategy option for specifying the `curl` details is `custom`. This allows you to provide a custom Nix expression to build the `curl` package. This is useful when you need to apply patches or have a very specific dependency to your `curl` build. For example, this is how you can specify a custom `curl` build with an old version of zlib:
 
 ```yaml
+#report.yaml
 curl:
-    strategy: nixpkgs
-    package:
-        version: 8.3.0
-        commit: <commit-hash> # will be automatically filled by the CLI tool
-        sha256: <sha256-hash> # will be automatically filled by the CLI tool
+    strategy: custom
 ```
 
-Configure build options can also be added using YAML's fields under `package`. Check [the documentation](../README.md) for the full list of supported configuration options.
+```nix
+# client.nix
+{ pkgs, ... }:
+let
+    oldZlib = pkgs.zlib.overrideAttrs (oldAttrs: {
+        version = "1.2.11";
+        src = pkgs.fetchurl {
+            url = "https://zlib.net/zlib-1.2.11.tar.gz";
+            sha256 = "1c9f62f0778697a09d36121ead88e08e0fe5b5c859d581a5a9f6190a95c";
+        };
+    });
+
+    customCurl = pkgs.curl.override {
+        zlib = oldZlib;
+    };
+in
+{
+    environment.systemPackages = with pkgs; [
+        customCurl
+    ];
+}
+```
 
 ### Install software with Nixpkgs
 

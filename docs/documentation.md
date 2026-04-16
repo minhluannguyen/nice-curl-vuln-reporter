@@ -81,6 +81,8 @@ curl:
   do_check: <true|false> # optional, default is false
   disable_protocols: [ <protocol1>, ... ] # optional, list of protocols to disable, e.g. [ "aws", "basic-auth" ]
   extra_configure_flags: [ <extra-configure-flag1>, ... ] # optional
+
+  # strategy: custom
 ```
 
 

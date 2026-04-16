@@ -3,8 +3,6 @@
 This library provides a structured and reproducible way to report cURL vulnerabilities using the NICE framework.
 Each vulnerability case is defined by a user-friendly descriptor `report.yaml` that specifies the vulnerable cURL package, VM configuration, test script that simulates the attack with assertions to validate the existence of the vulnerability. 
 
-## Getting Started
-
 ### Prerequisites
 
 - You need Nix in order to use this library, you can install it by following the instructions on the official Nix website: https://nixos.org/download.html. Or, run the following command in your terminal (for Linux users):
