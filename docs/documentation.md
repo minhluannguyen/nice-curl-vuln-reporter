@@ -233,6 +233,12 @@ test_script:
     ```
   - `assert` allows making assertions to validate the vulnerability. Multiple assertion types are supported:
     ```yaml
+    # Check if a user has root privileges
+    - assert:
+        type: check-root-gid
+        machine: <machine-name>
+        user: <username>
+
     # Check if a specific file exists or not
     - assert:
         type: check-file-exists
@@ -295,12 +301,6 @@ test_script:
         expected_time: <time-in-seconds>
         repeats: <number-of-runs>  # optional, default is 5
         tolerance: <tolerance-in-seconds>  # optional, default is 0.5
-
-    # Check if a user has root privileges
-    - assert:
-        type: check-root-gid
-        machine: <machine-name>
-        user: <username>
 
     # Check if a command is successfully/unsuccessfully executed with expected exit codes
     - assert:
