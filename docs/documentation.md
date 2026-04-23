@@ -221,24 +221,14 @@ test_script:
         machine: <machine-name>
         type: file
         path: <file-path>
-    - wait: # wait for a command to succeed
-        machine: <machine-name>
-        type: command-success
-        command: <command-to-wait-for-success>
-        timeout: <timeout-in-seconds>
-    - wait: # wait for a command to fail
-        machine: <machine-name>
-        type: command-fail
-        command: <command-to-wait-for-failure>
-        timeout: <timeout-in-seconds>
     ```
   - `run` allows running a command on a specified machine with an optional timeout.
     ```yaml
     - run:
       machine: <machine-name>
       command: <command-to-run>
-      allowed_fail: <true|false> # optional, default is false
-      expected_exit_codes: [ <list-of-expected-exit-codes> ] # optional, if allowed_fail is true but not provided, it defaults to allow any non-zero exit code.
+      expected_status: <success|failure|any> # optional, default is success. 
+      expected_exit_codes: [ <list-of-expected-exit-codes> ] # optional, if expected_status is failure but not provided, it defaults to allow any non-zero exit code.
       timeout: <timeout-in-seconds> # optional, default is 60 seconds
     ```
   - `assert` allows making assertions to validate the vulnerability. Multiple assertion types are supported:
@@ -317,8 +307,8 @@ test_script:
         type: check-command-result-status
         machine: <machine-name>
         command: <command-to-run>
-        allowed_fail: <true|false>  # optional, default is false
-        expected_exit_codes: [ <list-of-expected-exit-codes> ]  # optional, if allowed_fail is true but not provided, it defaults to allow any non-zero exit code.
+        expected_status: <success|failure>  # optional, default is success.
+        expected_exit_codes: [ <list-of-expected-exit-codes> ]  # optional, if expected_status is failure but not provided, it defaults to allow any non-zero exit code.
         rational: <rationale-for-assertion>  # a brief explanation of why this assertion is relevant for validating the vulnerability
         timeout: <timeout-in-seconds>  # optional, default is 60 seconds
     ```

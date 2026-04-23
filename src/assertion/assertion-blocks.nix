@@ -179,27 +179,34 @@
         wait_for_core_dump(${machine}, "${unit_name}", ${builtins.toJSON expected_signal}, ${toString repeats}, "${repeat_command}")
     '';
 
-    check-command-result-status = { machine, command, allowed_fail ? false, expected_exit_codes ? null, timeout ? 60 }: ''
+    check-command-result-status = { machine, command, expected_status ? "success", expected_exit_codes ? null, timeout ? 60 }: ''
         print("ASSERTION BLOCK: check_command_result_status")
 
-        def check_command_result_status(machine, command, allowed_fail, expected_exit_codes, timeout):
+        def check_command_result_status(machine, command, expected_status, expected_exit_codes, timeout):
             import json
 
-            if allowed_fail and expected_exit_codes is not None:
+            if (expected_status == "failure" and expected_exit_codes is not None):
+                stdout = machine.execute(command, timeout=timeout)
+                print(stdout[1])
                 formatted_exit_codes = json.dumps(expected_exit_codes)
                 print(f"Expected exit codes: {formatted_exit_codes} (allowed to fail)")
-                stdout = machine.execute(command, timeout=timeout)
                 if stdout[0] not in expected_exit_codes:
                     assert False, f"Command '{command}' failed with unexpected exit code: {stdout[0]}. Output: {stdout[1]}"
                 else:
                     print(f"Command '{command}' executed with expected exit code: {stdout[0]}. Output: {stdout[1]}")
-            elif allowed_fail:
+            elif expected_status == "failure" and expected_exit_codes is None:
                 print("This command is allowed to fail with any non-zero exit code.")
                 machine.fail(command, timeout=timeout)
             else:
                 print("This command is expected to succeed (exit code 0).")
                 machine.succeed(command, timeout=timeout)
 
-        check_command_result_status(${machine}, "${command}", ${if allowed_fail then "True" else "False"}, ${if allowed_fail then if expected_exit_codes != null then "[" + (builtins.concatStringsSep ", " (map toString expected_exit_codes)) + "]" else "None" else "None"}, ${toString timeout})
+        check_command_result_status(${machine}, "${command}", "${expected_status}", 
+            ${if expected_status == "failure" then 
+                if expected_exit_codes != null then 
+                    "[" + (builtins.concatStringsSep ", " (map toString expected_exit_codes)) + "]" 
+                else "None" 
+            else "None"}, 
+            ${toString timeout})
     '';
 }

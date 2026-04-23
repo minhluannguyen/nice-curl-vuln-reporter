@@ -86,7 +86,7 @@ test_script:
       port: 8080
   - run:
       machine: client
-      allowed_fail: true
+      expected_status: failure
       expected_exit_codes: [ 134, 1 ]
       command: curl http://attacker:8080
       timeout: 60

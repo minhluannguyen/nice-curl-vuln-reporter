@@ -99,7 +99,7 @@ An Python server example of [CVE-2025-5399](../reports/cve-2025-5399-curl-ws-loo
 The YAML report provides an abstract layer to the original NixOS test framework, which allows users to write test scenarios for NixOS VM. 
 
 There are 3 main actions in the test:
-- `run`: run a command on the VM. By default, the command is expected to be successful, but you can also specify `allowed_fail: true` and then expect any exit code from the command.
+- `run`: run a command on the VM. By default, the command is expected to be successful, but you can also specify `expected_status` to `failure` (with optional `expected_exit_codes`) or `any`(to ignore the result of the command).
 - `wait`: wait for a specific condition to be met. This is useful when the test needs to wait for the server to be ready before running the next command.
 - `assert`: the most important piece of the test, which checks whether the vulnerability is successfully exploited or an expected behavior is observed. It is the evidence of the vulnerability and the key part of the report.
 
@@ -119,7 +119,7 @@ test_script:
       port: 10801
   - run:
       machine: client
-      allowed_fail: true
+      expected_status: failure
       expected_exit_codes: [ 134, 1 ]
       command: curl -L --limit-rate 32768 -x socks5h://proxy:10801 attacker:8000 2>&1
   - assert:

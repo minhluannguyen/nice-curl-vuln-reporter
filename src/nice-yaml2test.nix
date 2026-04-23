@@ -37,33 +37,45 @@ let
   translateRun = config:
     let
       machine = config.machine or (throw "run action requires 'machine' field");
-      isAllowedFail = config.allowed_fail or false;
-      expectedExitCodes = if isAllowedFail then config.expected_exit_codes or null else null;
+      expectedStatus = if config ? expected_status then 
+        if config.expected_status != "success" && config.expected_status != "failure" && config.expected_status != "any" then
+          throw "Invalid value for expected_status: ${config.expected_status}. Allowed values are 'success', 'failure', or 'any'."
+        else config.expected_status
+      else "success"; # default to expecting success if not specified
+      expectedExitCodes = if expectedStatus == "failure" then config.expected_exit_codes or null else null;
       command = config.command or (throw "run action requires 'command' field");
       timeout = config.timeout or 60;
-      # Escape special characters for Python string: quotes, backslashes, dollar signs
-      # First escape backslashes, then quotes, then dollar signs
       escapedCommand = mkEscapedCommand command;
       # Format expected exit codes as Python list
       formattedExitCodes = if expectedExitCodes != null then "[${lib.concatStringsSep ", " (map toString expectedExitCodes)}]" else null;
     in
       ''
         print("STEP: Running command on ${machine}: ${escapedCommand}")
-        ${if isAllowedFail then "print('Note: This command is allowed to fail with exit codes: ${formattedExitCodes}')" else ""}
-        ${if !isAllowedFail then 
-          "print(${machine}.succeed(\"${escapedCommand}\", timeout=${toString timeout}))" 
-        else 
-          if expectedExitCodes == null then
-            "print(${machine}.fail(\"${escapedCommand}\", timeout=${toString timeout}))"
-          else  
+        ${if expectedStatus == "success" then
           ''
+            print('Note: This command is expected to succeed.')
+            print(${machine}.succeed(\"${escapedCommand}\", timeout=${toString timeout}))
+          ''
+        else if expectedStatus == "failure" && expectedExitCodes == null then
+          ''
+          print('Note: This command is expected to fail with exit codes: ${formattedExitCodes}')
+          print(${machine}.fail(\"${escapedCommand}\", timeout=${toString timeout}))
+          ''
+        else  
+          ''
+            print('Note: This command will be executed without restrictions on exit code or success/failure status')
             stdout = ${machine}.execute("${escapedCommand}", timeout=${toString timeout})
-            if stdout[0] not in ${formattedExitCodes}:
-              raise Exception(f"Command on ${machine} failed with unexpected exit code: {stdout[0]}. Output: {stdout[1]}")
             print(stdout[1])
-            print("EXIT CODE: " + str(stdout[0]))
           ''
         }
+        ${if expectedStatus == "failure" && expectedExitCodes != null then
+          ''
+            if stdout[0] not in ${formattedExitCodes}:
+              raise Exception(f"Command on ${machine} failed with unexpected exit code: {stdout[0]}. Output: {stdout[1]}")
+            print("EXIT CODE: " + str(stdout[0]))
+          ''
+          else ""
+        }   
       '';
 
   # Translate 'wait' action - waits for conditions (port, service, file, etc)
@@ -115,24 +127,6 @@ let
           ''
             print("STEP: Waiting for file ${path} on ${machine}")
             ${machine}.wait_for_file("${path}", timeout=${toString timeout})
-          ''
-      else if waitType == "command-success" then
-        let
-          command = config.command or (throw "wait action with type 'command' requires 'command' field");
-          escapedCommand = mkEscapedCommand command;
-        in
-          ''
-            print("STEP: Waiting for command to succeed on ${machine}")
-            ${machine}.wait_until_succeeds("${escapedCommand}", timeout=${toString timeout})
-          ''
-      else if waitType == "command-fail" then
-        let
-          command = config.command or (throw "wait action with type 'command' requires 'command' field");
-          escapedCommand = mkEscapedCommand command;
-        in
-          ''
-            print("STEP: Waiting for command to fail on ${machine}")
-            ${machine}.wait_until_fails("${escapedCommand}", timeout=${toString timeout})
           ''
       else
         throw "Unknown wait type: ${waitType}";

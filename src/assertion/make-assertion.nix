@@ -61,8 +61,8 @@ assertionCfg:
       assertionBlocks.check-command-result-status {
         machine = assertionMachine;
         command = escapeQuotes ap.command;
-        allowed_fail = ap.allowed_fail or false;
-        expected_exit_codes = if ap.allowed_fail then ap.expected_exit_codes or null else null;
+        expected_status = ap.expected_status or "success";
+        expected_exit_codes = if ap.expected_status == "failure" then ap.expected_exit_codes or null else null;
         timeout = ap.timeout or 60;
       }
     else
