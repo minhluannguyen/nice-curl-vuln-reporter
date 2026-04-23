@@ -96,12 +96,3 @@ nix run .#testVulnerableTrue.driver
 # For interactive mode
 nix run .#testVulnerableTrue.driverInteractive
 ```
-
-## Notes
-
-- Prefer `cve.yaml` for new cases.
-- Use `vm-configs/*.nix` for service/runtime customization instead of bloating descriptor fields.
-- Every VM is extensible with custom NixOS configurations, using the `config_path` field to point to a Nix file with additional configurations. This allows for more complex scenarios and customizations without overcomplicating the YAML descriptor. The same applies for the test script, where you can provide a custom test script with the `test_script_path` field.
-- NixOS configurations syntax can be found at: https://search.nixos.org/options 
-- More on NixOS testing framework at: https://nixos.org/manual/nixos/stable/index.html#sec-nixos-tests 
-
