@@ -205,7 +205,7 @@ test_script:
       content: "Error occurred"
 ```
 
-- `test_script_path` is an optional field that overrides the `test_script` block with a custom test script located at the specified path (`test-script.py` by default).
+- `test_script_path` is an optional field that overrides the `test_script` block with a custom test script located at the specified path.
 - The `test_script` block defines the steps to validate the vulnerability. Each step is an action that can be either `wait`, `run`, or `assert`:
   - `wait` allows waiting for a certain condition to be met before proceeding to the next step. Types of wait actions:
     ```yaml
@@ -228,7 +228,7 @@ test_script:
       machine: <machine-name>
       command: <command-to-run>
       expected_status: <success|failure|any> # optional, default is success. 
-      expected_exit_codes: [ <list-of-expected-exit-codes> ] # optional, if expected_status is failure but not provided, it defaults to allow any non-zero exit code.
+      expected_exit_codes: [ <list-of-expected-exit-codes> ] # optional, if expected_status is failure but expected_exit_codes is not provided, it defaults to allow any non-zero exit code.
       timeout: <timeout-in-seconds> # optional, default is 60 seconds
     ```
   - `assert` allows making assertions to validate the vulnerability. Multiple assertion types are supported:
