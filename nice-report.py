@@ -249,7 +249,41 @@ def create_security_report():
     print()
     show_main_menu()
 
-def update_single_hash(case_dir: Path):
+def calculate_sha256_src(source_url: str, original_content: str) -> str:
+    try:
+        result = subprocess.run(
+            ["nix-prefetch-url", source_url],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        if result.returncode == 0:
+            hash_raw = result.stdout.strip().split('\n')[-1].strip()
+            success(f"Computed hash: {hash_raw[:16]}...")
+            
+            # Convert hash from nix format to SRI format
+            result = subprocess.run(
+                ["nix", "hash", "convert", "--hash-algo", "sha256", "--to", "sri", hash_raw],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                vuln_hash = result.stdout.strip()
+                success(f"Converted hash to SRI: {vuln_hash}")
+                
+                # Replace hash line in the original content
+                content = original_content
+                content = re.sub(r'(\s+hash:)\s+.*', rf'\1 {vuln_hash}', content)
+            else:
+                error(f"Failed to convert hash: {result.stderr}")
+        else:
+            error(f"Failed to compute hash: {result.stderr}")
+    except FileNotFoundError:
+        error("nix-prefetch-url or nix command not found")
+
+    return content
+
+def update_single_hash(case_dir: Path, update_target: str):
     """Update hashes for a single case"""
     report_yaml = case_dir / "report.yaml"
     
@@ -278,18 +312,27 @@ def update_single_hash(case_dir: Path):
     if not vulnerable_version:
         error("Could not extract vulnerable version from report.yaml")
     
-    info(f"Vulnerable version: {vulnerable_version}")
+    if "Version" in update_target:
+        info(f"Vulnerable version: {vulnerable_version}")
     
     # Read the original file as text
     with open(report_yaml, 'r') as f:
         original_content = f.read()
     
     if strategy == "nixpkgs":
-        # Fetch commit hash for nixpkgs strategy
-        vuln_commit = fetch_commit_lazamar(vulnerable_version)
-        if not vuln_commit:
-            warning(f"Could not fetch commit hash for version {vulnerable_version}, please change to a different version")
-            return
+
+        if "Version" in update_target:
+            # Fetch commit hash for nixpkgs strategy
+            vuln_commit = fetch_commit_lazamar(vulnerable_version)
+            if not vuln_commit:
+                warning(f"Could not fetch commit hash for version {vulnerable_version}, please change to a different version")
+                return
+        elif "Commit hash" in update_target:
+            match = re.search(r'commit:\s+([a-f0-9]{40})', original_content)
+            if match:
+                vuln_commit = match.group(1)
+            else:
+                error("Could not extract existing commit hash from report.yaml")
         
         info("Computing vulnerable version hash...")
         hash_raw = compute_nixpkgs_hash(vuln_commit)
@@ -311,36 +354,7 @@ def update_single_hash(case_dir: Path):
         info(f"Computing source hash for {source_url}...")
         
         # Fetch the source and compute hash
-        try:
-            result = subprocess.run(
-                ["nix-prefetch-url", source_url],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-            if result.returncode == 0:
-                hash_raw = result.stdout.strip().split('\n')[-1].strip()
-                success(f"Computed hash: {hash_raw[:16]}...")
-                
-                # Convert hash from nix format to SRI format
-                result = subprocess.run(
-                    ["nix", "hash", "convert", "--hash-algo", "sha256", "--to", "sri", hash_raw],
-                    capture_output=True,
-                    text=True
-                )
-                if result.returncode == 0:
-                    vuln_hash = result.stdout.strip()
-                    success(f"Converted hash to SRI: {vuln_hash}")
-                    
-                    # Replace hash line in the original content
-                    content = original_content
-                    content = re.sub(r'(\s+hash:)\s+.*', rf'\1 {vuln_hash}', content)
-                else:
-                    error(f"Failed to convert hash: {result.stderr}")
-            else:
-                error(f"Failed to compute hash: {result.stderr}")
-        except FileNotFoundError:
-            error("nix-prefetch-url or nix command not found")
+        content = calculate_sha256_src(source_url, original_content)
     
     info("Updating report.yaml with new hashes...")
     
@@ -356,6 +370,11 @@ def update_hashes():
     """Update hashes for existing cases"""
     info("Updating hashes for existing cases...")
     print()
+
+    update_target = select_menu("Update from?", [
+        "Version (update commit hash and sha256 from version)",
+        "Commit hash (update sha256 from commit hash)",
+    ])
     
     cases = sorted([d.name for d in REPORT_DIR.iterdir() if d.is_dir()])
     
@@ -370,7 +389,7 @@ def update_hashes():
         return
     
     case_dir = REPORT_DIR / selected
-    update_single_hash(case_dir)
+    update_single_hash(case_dir, update_target)
     show_main_menu()
 
 
