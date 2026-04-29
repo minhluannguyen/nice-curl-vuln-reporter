@@ -142,6 +142,48 @@ let
     #   command: curl http://attacker:8080
     #   maximum_memory_bytes: 536870912
   mkAssertion = import ./assertion/make-assertion.nix;
+  
+  # Extract assertion type from an action
+  getAssertionType = action:
+    if action ? "assert" then
+      action."assert".name or (throw "assert action requires 'name' field")
+    else
+      null;
+  
+  # Get all unique assertion types from the test script
+  getAllAssertionTypes = testScriptYaml:
+    let
+      types = map getAssertionType testScriptYaml;
+      nonNullTypes = lib.filter (t: t != null) types;
+    in
+      lib.unique nonNullTypes;
+  
+  # Get assertion block definitions for a given type
+  getAssertionDefinition = assertType:
+    let
+      assertionBlocks = import ./assertion/assertion-blocks.nix;
+    in
+      if assertType == "check-core-dump-exists" then
+        assertionBlocks.check-core-dump-exists.definition
+      else if assertType == "check-memory-usage-high" then
+        assertionBlocks.check-memory-usage-high.definition
+      else if assertType == "check-cpu-usage-high" then
+        assertionBlocks.check-cpu-usage-high.definition
+      else if assertType == "check-file-exists" then
+        assertionBlocks.check-file-exists.definition
+      else if assertType == "check-file-contains" then
+        assertionBlocks.check-file-contains.definition
+      else if assertType == "check-file-size-equals" then
+        assertionBlocks.check-file-size-equals.definition
+      else if assertType == "check-service-log-contains" then
+        assertionBlocks.check-service-log-contains.definition
+      else if assertType == "check-command-result-status" then
+        assertionBlocks.check-command-result-status.definition
+      else if assertType == "check-exact-execution-time" then
+        assertionBlocks.check-exact-execution-time.definition
+      else
+        throw "Unknown assertion type: ${assertType}";
+  
   translateAssert = config:
     let
       assertionBlock = mkAssertion config;
@@ -167,6 +209,15 @@ in
     translateTests = if testScriptYaml != null then
       map translateAction testScriptYaml
     else [];
+    
+    # Get all unique assertion types used in the test script
+    assertionTypes = getAllAssertionTypes (if testScriptYaml != null then testScriptYaml else []);
+    
+    # Generate definitions for all assertion types
+    assertionDefinitions = lib.concatStringsSep "\n" (map getAssertionDefinition assertionTypes);
   in
-    lib.concatStringsSep "\n" translateTests;
+    if assertionTypes != [] then
+      assertionDefinitions + "\n\n" + lib.concatStringsSep "\n" translateTests
+    else
+      lib.concatStringsSep "\n" translateTests;
 }
