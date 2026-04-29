@@ -2,11 +2,16 @@
 
 let
   mkEscapedCommand = command: 
-    lib.pipe command [
+    let
+      # First, handle shell line continuations (backslash-newline) by removing them
+      withoutContinuations = lib.replaceStrings ["\\\n"] [""] command;
+    in
+    lib.pipe withoutContinuations [
       (s: lib.replaceStrings ["\\"] ["\\\\"] s)
       (s: lib.replaceStrings ["\""] ["\\\""] s)
       (s: lib.replaceStrings ["$"] ["\\$"] s)
       (s: lib.replaceStrings ["\'"] ["\\\'"] s)
+      (s: lib.replaceStrings ["\n"] ["\\n"] s)
     ];
 
   # Translate a single action
@@ -42,24 +47,27 @@ let
           throw "Invalid value for expected_status: ${config.expected_status}. Allowed values are 'success', 'failure', or 'any'."
         else config.expected_status
       else "success"; # default to expecting success if not specified
-      expectedExitCodes = if expectedStatus == "failure" then config.expected_exit_codes or null else null;
+      expectedExitCodes = if expectedStatus == "failure" then 
+        if config ? expected_exit_codes then config.expected_exit_codes
+        else null # if expecting failure but no exit codes specified, we won't check exit codes
+      else null; # if not expecting failure, ignore any specified exit codes
       command = config.command or (throw "run action requires 'command' field");
       timeout = config.timeout or 60;
       escapedCommand = mkEscapedCommand command;
       # Format expected exit codes as Python list
-      formattedExitCodes = if expectedExitCodes != null then "[${lib.concatStringsSep ", " (map toString expectedExitCodes)}]" else null;
+      formattedExitCodes = if expectedExitCodes != null then "[${lib.concatStringsSep ", " (map toString expectedExitCodes)}]" else "1";
     in
       ''
         print("STEP: Running command on ${machine}: ${escapedCommand}")
         ${if expectedStatus == "success" then
           ''
             print('Note: This command is expected to succeed.')
-            print(${machine}.succeed(\"${escapedCommand}\", timeout=${toString timeout}))
+            print(${machine}.succeed("${escapedCommand}", timeout=${toString timeout}))
           ''
         else if expectedStatus == "failure" && expectedExitCodes == null then
           ''
           print('Note: This command is expected to fail with exit codes: ${formattedExitCodes}')
-          print(${machine}.fail(\"${escapedCommand}\", timeout=${toString timeout}))
+          print(${machine}.fail("${escapedCommand}", timeout=${toString timeout}))
           ''
         else  
           ''
@@ -93,11 +101,6 @@ let
   #   machine: client
   #   type: file
   #   path: /tmp/result.txt
-  # wait:
-  #   machine: client
-  #   type: command
-  #   command: test -f /tmp/ready
-  #   timeout: 90
   translateWait = config:
     let
       machine = config.machine or (throw "wait action requires 'machine' field");

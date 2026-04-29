@@ -9,7 +9,9 @@ assertionCfg:
     escapeQuotes = s: 
       let
         str = builtins.toString s;
-        escaped1 = builtins.replaceStrings ["\\"] ["\\\\"] str;
+        # First, handle shell line continuations (backslash-newline) by removing them
+        withoutContinuations = builtins.replaceStrings ["\\\n"] [""] str;
+        escaped1 = builtins.replaceStrings ["\\"] ["\\\\"] withoutContinuations;
         escaped2 = builtins.replaceStrings ["\""] ["\\\""] escaped1;
         escaped3 = builtins.replaceStrings ["$"] ["\\$"] escaped2;
       in

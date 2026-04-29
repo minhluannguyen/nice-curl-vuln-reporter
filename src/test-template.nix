@@ -7,12 +7,20 @@ let
   
   mkYAML2Test = import ./nice-yaml2test.nix { inherit lib; };
   
-  testScript = if testScriptPath != null && hasFile testScriptPath then
-    builtins.readFile (caseDir + "/" + testScriptPath)
-  else if testScriptYaml != null then
-    mkYAML2Test.testYAML2Script testScriptYaml
-  else
-    throw "No test script provided. Please specify either 'test_script_path' or 'test_script' in report.yaml.";
+  testScript = 
+    if testScriptPath != null then
+      if testScriptYaml != null then
+        throw "Only one of 'test_script_path' or 'test_script' can be specified."
+      else if hasFile testScriptPath then
+        let
+          normalizedPath = lib.removePrefix "./" testScriptPath;
+        in
+          builtins.readFile (caseDir + "/${normalizedPath}")
+      else throw "${caseDir}/${lib.removePrefix "./" testScriptPath} specified in report.yaml does not exist."
+    else if testScriptYaml != null then
+      mkYAML2Test.testYAML2Script testScriptYaml
+    else
+      throw "No test script provided. Please specify either 'test_script_path' or 'test_script' in report.yaml.";
 
   defaultAttackerWaitBlock = 
     if enableAttacker then
