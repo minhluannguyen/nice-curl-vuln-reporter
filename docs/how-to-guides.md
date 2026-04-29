@@ -33,7 +33,7 @@ curl:
         sha256: <sha256-hash> # will be automatically filled by the CLI tool
 ```
 
-Configure build options can also be added using YAML's fields under `package`. Check [the documentation](../README.md) for the full list of supported configuration options.
+Configure build options can also be added using YAML's fields under `package`. Check the [NICE YAML documentation](./documentation.md) for the full list of supported configuration options.
 
 ### Describe the environment
 
@@ -129,4 +129,4 @@ test_script:
         expected_signal: ABRT
 ```
 
-You can rewrite the test scenarios with a `test-script.py` file but it is recommended to use the YAML report file for better readability and maintainability. Refer to the [NixOS Testing Framework](https://nixos.wiki/wiki/NixOS_Testing_library) and [its syntax](https://nixos.org/manual/nixos/stable/index.html#sec-nixos-tests) for the complete description of the NixOS test framework.
+You can rewrite the test scenarios with a `test-script.py` file but it is recommended to use the YAML report file for better readability and maintainability. Check the [NICE YAML documentation](./documentation.md) for the full list of supported actions and assertions, and how to use them. If you need to write custom test logic that is not supported by the YAML report, refer to the [Nix Guides](./nix-guides.md).

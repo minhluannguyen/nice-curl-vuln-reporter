@@ -189,6 +189,7 @@ The custom VM configuration allows both receiving and sending traffic, so it spe
 
 ```yaml
 test_script_path: test-script.py
+# or
 test_script:
   - wait:
       machine: attacker
@@ -205,7 +206,7 @@ test_script:
       content: "Error occurred"
 ```
 
-- `test_script_path` is an optional field that overrides the `test_script` block with a custom test script located at the specified path.
+- `test_script_path` is an optional field that overrides the `test_script` block with a custom test script located at the specified path. You can only decide to use either `test_script_path` or `test_script`, but not both.
 - The `test_script` block defines the steps to validate the vulnerability. Each step is an action that can be either `wait`, `run`, or `assert`:
   - `wait` allows waiting for a certain condition to be met before proceeding to the next step. Types of wait actions:
     ```yaml
@@ -213,14 +214,17 @@ test_script:
         machine: <machine-name>
         type: port
         port: <port-number>
+        timeout: <timeout-in-seconds> # optional, default is 60 seconds
     - wait: # wait for a service to be active
         machine: <machine-name>
         type: service  # or 'unit'
         service_name: <service-name>
+        timeout: <timeout-in-seconds> # optional, default is 60 seconds
     - wait: # wait for a file to exist in the provided path
         machine: <machine-name>
         type: file
         path: <file-path>
+        timeout: <timeout-in-seconds> # optional, default is 60 seconds
     ```
   - `run` allows running a command on a specified machine with an optional timeout.
     ```yaml
@@ -235,89 +239,92 @@ test_script:
     ```yaml
     # Check if a user has root privileges
     - assert:
-        type: check-root-gid
+        name: check-root-gid
         machine: <machine-name>
-        user: <username>
+        params:
+          user: <username>
 
-    # Check if a specific file exists or not
+    # Check if a specific file exists or not within a certain period of time
     - assert:
-        type: check-file-exists
+        name: check-file-exists
         machine: <machine-name>
-        file_path: <path-to-file>
-        is_existing: <true|false>  # optional, default is true
-        timeout: <timeout-in-seconds>  # optional, default is 90
+        params:
+          file_path: <path-to-file>
+          is_present: <true|false>  # optional, default is true
+          timeout: <timeout-in-seconds>  # optional, default is 60
 
-    # Check if a specific file contains the expected content
+    # Check if a specific file contains the expected content within a certain period of time
     - assert:
-        type: check-file-contains
+        name: check-file-contains
         machine: <machine-name>
-        file_path: <path-to-file>
-        content: <expected-content>
-        timeout: <timeout-in-seconds>  # optional, default is 90
+        params:
+          file_path: <path-to-file>
+          content: <expected-content>
+          timeout: <timeout-in-seconds>  # optional, default is 60
 
-    # Check if a specific file size equals the expected size
+    # Check if a specific file size equals the expected size within a certain period of time
     - assert:
-        type: check-file-size-equals
+        name: check-file-size-equals
         machine: <machine-name>
-        file_path: <path-to-file>
-        expected_size: <size-in-bytes>
-        timeout: <timeout-in-seconds>  # optional, default is 90
-    # Check if a specific message appears in the systemd service logs
+        params:
+          file_path: <path-to-file>
+          expected_size: <size-in-bytes>
+          timeout: <timeout-in-seconds>  # optional, default is 60
+    # Check if a specific message appears in the systemd service logs within a certain period of time
     - assert:
-        type: check-service-log-contains
+        name: check-service-log-contains
         machine: <machine-name>
-        unit: <service-unit-name>
-        check_message: <expected-message>
-        failed_message: <custom-failure-message>  # optional
+        params:
+          unit: <service-unit-name>
+          check_message: <expected-message>
+          failed_message: <custom-failure-message>  # optional
+          timeout: <timeout-in-seconds>  # optional, default is 60
 
     # Check if a core dump file is generated with the expected signal number
     - assert:
-        type: check-core-dump-exists
+        name: check-core-dump-exists
         machine: <machine-name>
-        expected_signal: <signal-number>
-        unit_name: <service-unit-name>  # optional, default is "backdoor.service"
-        repeats: <number-of-retries>  # optional, default is 10
-        repeat_command: <command-to-trigger-crash>  # optional
+        params:
+          expected_signal: <signal-number>
+          unit_name: <service-unit-name>  # optional, default is "backdoor.service"
+          repeats: <number-of-retries>  # optional, default is 10
+          repeat_command: <command-to-trigger-crash>  # optional
 
     # Check if the memory usage of a command exceeds a certain threshold
     - assert:
-        type: check-memory-usage-high
+        name: check-memory-usage-high
         machine: <machine-name>
-        command: <command-to-run>
-        maximum_memory_bytes: <max-memory-in-bytes>
+        params:
+          command: <command-to-run>
+          maximum_memory_bytes: <max-memory-in-bytes>
 
     # Check if CPU time of a command exceeds a certain threshold
     - assert:
-        type: check-cpu-usage-high
+        name: check-cpu-usage-high
         machine: <machine-name>
-        command: <command-to-run>
-        maximum_cpu_time_secs: <max-cpu-time-in-seconds>
+        params:
+          command: <command-to-run>
+          maximum_cpu_time_secs: <max-cpu-time-in-seconds>
 
     # Check if the execution time of a command is within a certain range
     - assert:
-        type: check-exact-execution-time
+        name: check-exact-execution-time
         machine: <machine-name>
-        command: <command-to-run>
-        expected_time: <time-in-seconds>
-        repeats: <number-of-runs>  # optional, default is 5
-        tolerance: <tolerance-in-seconds>  # optional, default is 0.5
+        params:
+          command: <command-to-run>
+          expected_time: <time-in-seconds>
+          repeats: <number-of-runs>  # optional, default is 5
+          tolerance: <tolerance-in-seconds>  # optional, default is 0.5
 
     # Check if a command is successfully/unsuccessfully executed with expected exit codes
     - assert:
-        type: check-command-result-status
+        name: check-command-result-status
         machine: <machine-name>
-        command: <command-to-run>
-        expected_status: <success|failure>  # optional, default is success.
-        expected_exit_codes: [ <list-of-expected-exit-codes> ]  # optional, if expected_status is failure but not provided, it defaults to allow any non-zero exit code.
-        rational: <rationale-for-assertion>  # a brief explanation of why this assertion is relevant for validating the vulnerability
-        timeout: <timeout-in-seconds>  # optional, default is 60 seconds
+        params:
+          command: <command-to-run>
+          expected_status: <success|failure>  # expected outcome of the command execution, must be defined
+          expected_exit_codes: [ <list-of-expected-exit-codes> ]  # optional, if expected_status is failure but not provided, it defaults to allow any non-zero exit code.
+          rationale: <rationale-for-assertion>  # a brief explanation of why this assertion is relevant for validating the vulnerability
+          timeout: <timeout-in-seconds>  # optional, default is 60 seconds
     ```
-
-## Notes
-
-- Prefer `cve.yaml` for new cases.
-- Use `vm-configs/*.nix` for service/runtime customization instead of bloating descriptor fields.
-- Every VM is extensible with custom NixOS configurations, using the `config_path` field to point to a Nix file with additional configurations. This allows for more complex scenarios and customizations without overcomplicating the YAML descriptor. The same applies for the test script, where you can provide a custom test script with the `test_script_path` field.
-- NixOS configurations syntax can be found at: https://search.nixos.org/options 
-- More on NixOS testing framework at: https://nixos.org/manual/nixos/stable/index.html#sec-nixos-tests 
 

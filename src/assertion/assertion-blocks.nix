@@ -29,8 +29,8 @@ check_root_gid(${machine}, "${user}")
 
     check-file-exists = {
         definition = ''
-def check_file_exists(machine, file_path, is_existing, timeout):
-    if is_existing:
+def check_file_exists(machine, file_path, is_present, timeout):
+    if is_present:
         import inspect
         
         sig = inspect.signature(machine.wait_for_file)
@@ -42,9 +42,9 @@ def check_file_exists(machine, file_path, is_existing, timeout):
     else:
         machine.wait_until_succeeds(f"test ! -e {file_path}", timeout=timeout)
         '';
-        call = { machine, file_path, is_existing ? true, timeout ? 60 }: ''
-print("ASSERTION BLOCK: check_file_exists (expecting file to be ${if is_existing then "present" else "absent"})")
-check_file_exists(${machine}, "${file_path}", ${if is_existing then "True" else "False"}, ${toString timeout})
+        call = { machine, file_path, is_present ? true, timeout ? 60 }: ''
+print("ASSERTION BLOCK: check_file_exists (expecting file to be ${if is_present then "present" else "absent"})")
+check_file_exists(${machine}, "${file_path}", ${if is_present then "True" else "False"}, ${toString timeout})
         '';
     };
 

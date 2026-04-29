@@ -236,3 +236,7 @@ networking.defaultGateway.address = "192.168.2.1";
 ```
 
 After forcefully assigning the IP addresses to the VMs with `networking.interfaces.<interface>.ipv4.addresses`, we set the virtual LANs for the interfaces ( `eth1` (1 by default) for the client and `eth2` (2) for the server) and configure the router to forward packets between the two subnets. This allows us to simulate a more realistic network environment.
+
+### NixOS Tests framework
+
+The NICE YAML report for curl does not currently support all the features provided by the NixOS test framework. If you need to write more complex test logic that is not supported by the YAML report, you can also write NixOS tests directly in a Python test script and then point to this script using the `test_script_path` field in the `report.yaml` file. Refer to the [NixOS Testing Framework](https://nixos.wiki/wiki/NixOS_Testing_library) and [its syntax](https://nixos.org/manual/nixos/stable/index.html#sec-nixos-tests) for the complete description of the NixOS test framework.

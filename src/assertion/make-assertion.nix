@@ -41,7 +41,7 @@ assertionCfg:
       assertionBlocks.check-file-exists.call {
         machine = assertionMachine;
         file_path = escapeQuotes ap.file_path;
-        is_existing = ap.is_existing or true;
+        is_present = ap.is_present or true;
         timeout = ap.timeout or 60;
       }
     else if assertionType == "check-file-contains" then
@@ -63,7 +63,10 @@ assertionCfg:
       assertionBlocks.check-command-result-status.call {
         machine = assertionMachine;
         command = escapeQuotes ap.command;
-        expected_status = ap.expected_status or "success";
+        expected_status = 
+          if ap ? expected_status then
+            if ap.expected_status != "success" && ap.expected_status != "failure" then throw "expected_status must be either 'success' or 'failure'" else ap.expected_status
+          else throw "check-command-result-status assertion requires 'expected_status' field";
         expected_exit_codes = if ap.expected_status == "failure" then ap.expected_exit_codes or null else null;
         timeout = ap.timeout or 60;
       }

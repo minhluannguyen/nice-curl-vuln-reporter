@@ -105,7 +105,7 @@ let
     let
       machine = config.machine or (throw "wait action requires 'machine' field");
       waitType = config.type or (throw "wait action requires 'type' field");
-      timeout = config.timeout or 90;
+      timeout = config.timeout or 60;
     in
       if waitType == "port" then
         let
@@ -113,7 +113,7 @@ let
         in
           ''
             print("STEP: Waiting for port ${toString port} on ${machine}")
-            ${machine}.wait_for_open_port(${toString port})
+            ${machine}.wait_for_open_port(${toString port}, timeout=${toString timeout})
           ''
       else if waitType == "service" || waitType == "unit" then
         let
@@ -121,7 +121,7 @@ let
         in
           ''
             print("STEP: Waiting for service ${service} on ${machine}")
-            ${machine}.wait_for_unit("${service}")
+            ${machine}.wait_for_unit("${service}", timeout=${toString timeout})
           ''
       else if waitType == "file" then
         let
@@ -190,13 +190,13 @@ let
       assertType = config.name or (throw "assert action requires 'name' field");
       machine = config.machine or (throw "assert action requires 'machine' field");
 
-      escapedRationale = if config.params ? rational then mkEscapedCommand config.params.rational else null;
+      escapedRationale = if config.params ? rationale then mkEscapedCommand config.params.rationale else null;
     in
       ''
         print("ASSERTION: ${assertType} on ${machine}")
         ${if assertType == "check-command-result-status" then
-            if !config.params ? rational then 
-              throw "Assert action with type 'check-command-result-status' requires 'rational' field in params to explain the rationale for this assertion."
+            if !config.params ? rationale then 
+              throw "Assert action with type 'check-command-result-status' requires 'rationale' field in params to explain the rationale for this assertion."
             else "print(\"Rationale: ${escapedRationale}\")"
           else ""
         }
