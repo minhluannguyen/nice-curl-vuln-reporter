@@ -44,7 +44,18 @@ Each case directory:
 ## The CLI report helper tool
 This tool provides a command-line interface to interact with the vulnerability reports.
 
-### 1. Install dependencies and set up the environment.**
+### 1. Run as a Nix application:
+You can run the helper script using Nix run. First, clone the repository if you want to run the example, then run the following command from the project root:
+```bash
+nix run .#nice-report
+```
+
+If you already have available reports to work with, within the same directory containing the `reports/` folder, run:
+```bash
+nix run git+https://gitlab.telecom-paris.fr/minh-luan.nguyen/nice-curl-vuln-report.git#nice-report
+```
+
+### 2. Install dependencies and set up the environment. (deprecated)
 
 You can install the required dependencies using the following command:
 
