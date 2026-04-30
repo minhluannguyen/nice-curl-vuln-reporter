@@ -52,7 +52,7 @@ nix run .#nice-report
 
 If you already have available reports to work with, within the same directory containing the `reports/` folder, run:
 ```bash
-nix run git+https://gitlab.telecom-paris.fr/minh-luan.nguyen/nice-curl-vuln-report.git#nice-report
+nix run 'gitlab:minh-luan.nguyen/nice-curl-vuln-report/master?host=gitlab.telecom-paris.fr#nice-report'
 ```
 
 ### 2. Install dependencies and set up the environment. (deprecated)
