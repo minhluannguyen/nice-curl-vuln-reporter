@@ -28,7 +28,7 @@ NC = '\033[0m'  # No Color
 # Directories
 SCRIPT_DIR = Path.cwd()
 REPORT_DIR = SCRIPT_DIR / "reports"
-TEMPLATE_DIR = SCRIPT_DIR / "template"
+TEMPLATE_DIR = Path(__file__).parent / "template"
 
 def info(msg: str):
     """Print info message"""
@@ -714,10 +714,8 @@ def show_main_menu():
 def main():
     """Main entry point"""
     if not REPORT_DIR.exists():
-        error(f"reports directory not found: {REPORT_DIR}")
-    
-    if not TEMPLATE_DIR.exists():
-        error(f"Template directory not found: {TEMPLATE_DIR}")
+        warning(f"Report directory not found, creating: {REPORT_DIR}")
+        REPORT_DIR.mkdir(parents=True)
     
     # Try to add files to git
     try:
