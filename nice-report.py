@@ -26,10 +26,9 @@ BLUE = '\033[0;34m'
 NC = '\033[0m'  # No Color
 
 # Directories
-SCRIPT_DIR = Path(__file__).parent.resolve()
+SCRIPT_DIR = Path.cwd()
 REPORT_DIR = SCRIPT_DIR / "reports"
 TEMPLATE_DIR = SCRIPT_DIR / "template"
-
 
 def info(msg: str):
     """Print info message"""
