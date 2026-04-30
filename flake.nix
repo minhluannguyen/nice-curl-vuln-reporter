@@ -19,16 +19,16 @@
         let
           pkgs = import nixpkgs { inherit system; };
 
-          python = pkgs.python312.withPackages (ps: with ps; [
+          packagedPython = pkgs.python312.withPackages (ps: with ps; [
             jinja2
             pyyaml
             pexpect
           ]);
 
-          runtimeInputs = [ python pkgs.terminator pkgs.openssh ];
+          runtimeInputs = with pkgs;[ packagedPython terminator openssh nix ];
 
           nice-report = pkgs.writeShellScriptBin "nice-report" ''
-            exec ${python}/bin/python ${self}/nice-report.py "$@"
+            exec ${packagedPython}/bin/python ${self}/nice-report.py "$@"
           '';
         in
         {
