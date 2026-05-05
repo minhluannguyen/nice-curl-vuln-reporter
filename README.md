@@ -47,13 +47,15 @@ This tool provides a command-line interface to interact with the vulnerability r
 ### 1. Run as a Nix application:
 You can run the helper script using Nix run. First, clone the repository if you want to run the example, then run the following command from the project root:
 ```bash
-nix run .#nice-report
+nix run
 ```
 
 If you already have available reports to work with, within the same directory containing the `reports/` folder, run:
 ```bash
-nix run 'gitlab:minh-luan.nguyen/nice-curl-vuln-report/master?host=gitlab.telecom-paris.fr#nice-report'
+nix run 'gitlab:minh-luan.nguyen/nice-curl-vuln-report/master?host=gitlab.telecom-paris.fr'
 ```
+
+*Note*: Add the `--refresh` flag to the `nix run` command if you want to make sure you are running the latest version on the `master` branch.
 
 ### 2. Install dependencies and set up the environment. (deprecated)
 

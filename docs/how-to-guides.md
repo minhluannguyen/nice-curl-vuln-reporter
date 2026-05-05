@@ -94,6 +94,12 @@ An Python server example of [CVE-2025-5399](../reports/cve-2025-5399-curl-ws-loo
         run_command: python3 exploit-server.py
 ```
 
+### Exploit the vulnerability in interactive mode
+
+It is recommended to first test the exploit in interactive mode to make sure it works as expected before writing the test for it. The interactive mode will automatically set up the VMs based on the configuration in the `report.yaml` file, and you can manually run the commands on the VMs to trigger the vulnerability and check the results.
+
+To start the interactive mode, choose the `3) Start interactive scenario` option in the CLI tool and then select the report you want to interact with. After the VMs are set up, many terminals will be opened for you to interact with the VMs, you can also open new terminals and connect to the VMs using `ssh` command shown by the CLI tool. 
+
 ### Write test scenarios
 
 The YAML report provides an abstract layer to the original NixOS test framework, which allows users to write test scenarios for NixOS VM. 
