@@ -152,7 +152,7 @@ def fetch_commit_from_csv(curl_version: str) -> str:
     """Fetch nixpkgs commit from CSV database"""
     info(f"Trying CSV database for curl {curl_version}...")
     
-    csv_path = USER_DIR / "curl_nixpkgs_versions.csv"
+    csv_path = LIBRARY_DIR / "curl_nixpkgs_versions.csv"
     try:
         if not csv_path.exists():
             warning(f"CSV database not found at {csv_path}")
