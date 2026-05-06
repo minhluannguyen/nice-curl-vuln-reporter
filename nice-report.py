@@ -232,7 +232,7 @@ def create_security_report():
 
     attacker_server_language = None
     if is_attacker_server:
-        attacker_server_language = select_menu("Select supported attacker server language:", ["C", "Python"], default=1)
+        attacker_server_language = select_menu("Select supported attacker server language:", ["C", "Python", "Bash"], default=1)
     
     is_custom_vms = select_menu("Are custom VMs needed for this report?", ["Yes", "No"], default=2) == "Yes"
     

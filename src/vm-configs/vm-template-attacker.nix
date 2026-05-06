@@ -76,10 +76,10 @@ let
   else null;
 
   # If shell server
-  requiredPackagesList = if hasServerConfig && serverCfg.language == "shell" && serverCfg ? required_packages then serverCfg.required_packages else [];
+  requiredPackagesList = if hasServerConfig && serverCfg.language == "bash" && serverCfg ? required_packages then serverCfg.required_packages else [];
   requiredPackages = map (pkg: pkgs.${pkg}) requiredPackagesList;
   
-  shellServerWithEnv = if hasServerConfig && serverCfg.language == "shell" && serverCfg ? run_command then
+  shellServerWithEnv = if hasServerConfig && serverCfg.language == "bash" && serverCfg ? run_command then
     let
       shellEnv = pkgs.buildEnv {
         name = "shell-server-env";
@@ -100,7 +100,7 @@ let
     ${if serverCfg ? run_command then 
         if serverCfg.language == "c" then "cd ${serverDerivation}/exploit && ./${mkEscapedCommand serverCfg.run_command}" else
           if serverCfg.language == "python" then "cd ${serverFiles}/exploit && ${modifiedPyPkgs}/bin/${mkEscapedCommand serverCfg.run_command}" else
-            if serverCfg.language == "shell" then "${shellServerWithEnv}" else ""
+            if serverCfg.language == "bash" then "${shellServerWithEnv}" else ""
     else "" } 
     ''
   else null;

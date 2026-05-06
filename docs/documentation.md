@@ -151,7 +151,7 @@ vm:
       python_packages: [ pwntools ]
       run_command: python3 exploit-server.py
       # If the server is written in shell script
-      language: shell
+      language: bash
       required_packages: [ netcat ]
       run_command: |- 
         nc -l -k 9999 -c 'echo -e "HTTP/1.1 200 OK\r\nContent-Length: 666\r\n\r\nYour important file has been overwritten!"'

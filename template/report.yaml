@@ -64,8 +64,8 @@ vm:
       python_version: "3.12"
       python_packages: [ pwntools ]
       run_command: python3 exploit-server.py
-      {% elif attacker_server_language == "Shell" -%}
-      language: shell
+      {% elif attacker_server_language == "Bash" -%}
+      language: bash
       required_packages: [ netcat ]
       run_command: |- 
         while true; do
