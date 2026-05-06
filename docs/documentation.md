@@ -202,8 +202,9 @@ test_script:
   - assert:
       type: check-file-contains
       machine: client
-      file_path: /var/log/server.log
-      content: "Error occurred"
+      params:
+        file_path: /var/log/server.log
+        content: "Error occurred"
 ```
 
 - `test_script_path` is an optional field that overrides the `test_script` block with a custom test script located at the specified path. You can only decide to use either `test_script_path` or `test_script`, but not both.

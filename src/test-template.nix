@@ -32,7 +32,10 @@ let
           attacker.wait_for_unit("multi-user.target")
           ${
           let
-            isServiceWait = attackerCfg ? server && attackerCfg.server ? wait_in_test_script && attackerCfg.server.wait_in_test_script;
+            isServiceWait = 
+              if attackerCfg ? server && attackerCfg.server ? wait_in_test_script 
+                then attackerCfg.server.wait_in_test_script 
+              else true;
             service = if isServiceWait then attackerCfg.server.service_name or "maliciousServer" else null;
           in
             if isServiceWait then 

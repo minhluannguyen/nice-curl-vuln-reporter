@@ -51,7 +51,7 @@ vm:
     server:
       # file_path: ./exploit/server
       # service_name: "maliciousServer"
-      wait_in_test_script: true
+      # wait_in_test_script: true
       {% if attacker_server_language == "C" -%}
       language: c
       build_config:
@@ -80,39 +80,28 @@ vm:
 # Defaults to `./test-script.py` if not specified.
 # test_script_path: ./test-scripts/test-script.py
 test_script:
-  - wait:
-      machine: attacker
-      type: port
-      port: 8080
-  - run:
-      machine: client
-      expected_status: failure
-      expected_exit_codes: [ 134, 1 ]
-      command: curl http://attacker:8080
-      timeout: 60
-  - assert:
-      name: check-file-contains
-      machine: client
-      file_path: /var/log/server.log
-      content: "Error occurred"
   # - wait:
   #     machine: attacker
-  #     type: service  # or 'unit'
-  #     service_name: serverService.service
-  # - wait:
+  #     type: port
+  #     port: 8080
+  # - run:
   #     machine: client
-  #     type: file
-  #     path: /tmp/result.txt
-  # - wait:
+  #     expected_status: failure
+  #     expected_exit_codes: [ 134, 1 ]
+  #     command: curl http://attacker:8080
+  #     timeout: 60
+  # - assert:
+  #     name: check-file-contains
   #     machine: client
-  #     type: command
-  #     command: test -f /tmp/ready
-  #     timeout: 90
+  #     params:
+  #       file_path: /var/log/server.log
+  #       content: "Error occurred"
   # - assert:
   #     name: check-memory-usage-high
   #     machine: client
-  #     command: curl http://attacker:8080
-  #     maximum_memory_bytes: 536870912
+  #     params:
+        # command: curl http://attacker:8080
+        # maximum_memory_bytes: 536870912
 
 # Metadata for CVE report
 meta:
