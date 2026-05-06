@@ -26,9 +26,11 @@ BLUE = '\033[0;34m'
 NC = '\033[0m'  # No Color
 
 # Directories
-SCRIPT_DIR = Path.cwd()
-REPORT_DIR = SCRIPT_DIR / "reports"
-TEMPLATE_DIR = Path(__file__).parent / "template"
+USER_DIR = Path.cwd()
+REPORT_DIR = USER_DIR / "reports"
+
+LIBRARY_DIR = Path(__file__).parent
+TEMPLATE_DIR = LIBRARY_DIR / "template"
 
 def info(msg: str):
     """Print info message"""
@@ -146,6 +148,33 @@ def fetch_commit_latest() -> str:
     warning("Could not fetch latest nixpkgs commit")
     return ""
 
+def fetch_commit_from_csv(curl_version: str) -> str:
+    """Fetch nixpkgs commit from CSV database"""
+    info(f"Trying CSV database for curl {curl_version}...")
+    
+    csv_path = USER_DIR / "curl_nixpkgs_versions.csv"
+    try:
+        if not csv_path.exists():
+            warning(f"CSV database not found at {csv_path}")
+            return ""
+        
+        with open(csv_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('curl_version'):
+                    continue  # Skip empty lines and header
+                parts = [p.strip() for p in line.split(',')]
+                if len(parts) >= 3 and parts[0] == curl_version and parts[2]:
+                    commit = parts[2]
+                    success(f"Found via CSV: {commit[:8]}...")
+                    return commit
+    except Exception as e:
+        warning(f"Error reading CSV database: {e}")
+        return ""
+    
+    warning(f"CSV database did not have an entry for curl {curl_version}")
+    return ""
+
 
 def fetch_commit_for_version(curl_version: str) -> str:
     """Fetch nixpkgs commit for a given curl version"""
@@ -155,11 +184,16 @@ def fetch_commit_for_version(curl_version: str) -> str:
         latest = fetch_commit_latest()
         if latest:
             return latest
+        
+    # Try CSV database
+    csv_commit = fetch_commit_from_csv(curl_version)
+    if csv_commit:
+        return csv_commit
     
-    # Try Lazamar
-    lazamar = fetch_commit_lazamar(curl_version)
-    if lazamar:
-        return lazamar
+    # Try Lazamar (deprecated)
+    # lazamar = fetch_commit_lazamar(curl_version)
+    # if lazamar:
+    #     return lazamar
     
     return ""
 
@@ -322,7 +356,8 @@ def update_single_hash(case_dir: Path, update_target: str):
 
         if "Version" in update_target:
             # Fetch commit hash for nixpkgs strategy
-            vuln_commit = fetch_commit_lazamar(vulnerable_version)
+            # vuln_commit = fetch_commit_lazamar(vulnerable_version)
+            vuln_commit = fetch_commit_for_version(vulnerable_version)
             if not vuln_commit:
                 warning(f"Could not fetch commit hash for version {vulnerable_version}, please change to a different version")
                 return
@@ -527,14 +562,14 @@ def start_scenario():
     case_dir = REPORT_DIR / selected
     
     try:
-        subprocess.run(["bash", SCRIPT_DIR / "cleanup-script.sh"], capture_output=True)
+        subprocess.run(["bash", LIBRARY_DIR / "cleanup-script.sh"], capture_output=True)
     except Exception:
         pass
   
     # Extract VM names from flake
     info("Extracting VM names from flake...")
     try:
-        subprocess.run(["git", "add", case_dir], cwd=SCRIPT_DIR, capture_output=True)
+        subprocess.run(["git", "add", case_dir], cwd=USER_DIR, capture_output=True)
 
         child = pexpect.spawn(
             "nix run .#startScenario.driverInteractive",
@@ -620,14 +655,14 @@ def manage_vms():
     case_dir = REPORT_DIR / selected
     
     try:
-        subprocess.run(["bash", SCRIPT_DIR / "cleanup-script.sh"], capture_output=True)
+        subprocess.run(["bash", LIBRARY_DIR / "cleanup-script.sh"], capture_output=True)
     except Exception:
         pass
   
     # Extract VM names from flake
     info("Extracting VM names from flake...")
     try:
-        subprocess.run(["git", "add", case_dir], cwd=SCRIPT_DIR, capture_output=True)
+        subprocess.run(["git", "add", case_dir], cwd=USER_DIR, capture_output=True)
         result = subprocess.run(
             ["nix", "flake", "show", "--json", "--allow-import-from-derivation"],
             cwd=case_dir,
@@ -718,14 +753,14 @@ def main():
         REPORT_DIR.mkdir(parents=True)
     
     # Try to add files to git
-    try:
-        subprocess.run(
-            ["git", "add", "."],
-            cwd=SCRIPT_DIR,
-            capture_output=True
-        )
-    except Exception:
-        pass
+    # try:
+    #     subprocess.run(
+    #         ["git", "add", "."],
+    #         cwd=SCRIPT_DIR,
+    #         capture_output=True
+    #     )
+    # except Exception:
+    #     pass
     
     show_main_menu()
 
