@@ -150,6 +150,11 @@ vm:
       python_version: "3.12"
       python_packages: [ pwntools ]
       run_command: python3 exploit-server.py
+      # If the server is written in shell script
+      language: shell
+      required_packages: [ netcat ]
+      run_command: |- 
+        nc -l -k 9999 -c 'echo -e "HTTP/1.1 200 OK\r\nContent-Length: 666\r\n\r\nYour important file has been overwritten!"'
 ```
 
 - Similar to the client block, `config_path` (*optional*) allows extending the default VM configuration for the attacker machine. If not provided, a default configuration (`vm-configs/attacker.nix`) will be used if the file exists.
@@ -162,11 +167,14 @@ vm:
   - `wait_in_test_script` is a boolean flag that indicates whether the test script should automatically wait for the server to be ready before continuing.
   - For C applications, specify the `build_config` with `build_inputs` for any dependencies needed during compilation, `build_commands` for the commands to build the server, and `build_output` for the name of the output executable.
   - For Python applications, specify the `python_version`, any required `python_packages` to start the server. The Python dependencies can be found on the Nix search website, although most of these Python packages have the same name as in Nixpkgs.
-  - `run_command` specifies the command to run the server application.
+  - `run_command` specifies the command to run the server application. Multipleline commands can be specified using the `|-` YAML syntax.
+  - `required_packages` in case of shell script server is a list of Nix packages that are required to run the server (e.g. `netcat`). You can search for these packages [here](https://search.nixos.org/packages).
 
 Port fields accept either:
 - a single integer (e.g. `8080`)
 - a list of integers (e.g. `[8080, 8081]`)
+
+*Note*: The default `netcat` in NixOS is OpenBSD netcat which does not support the `-p` option to specify the listening port (`nc -l 8080` instead of `nc -l -p 8080`).
 
 ### Custom VMs block
 
@@ -329,3 +337,5 @@ test_script:
           timeout: <timeout-in-seconds>  # optional, default is 60 seconds
     ```
 
+*Note*:
+  - Multiple-line `command` field can be specified using the `|-` YAML syntax.

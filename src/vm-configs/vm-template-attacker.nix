@@ -1,4 +1,4 @@
-{ isTest, attackerCfg, caseDir }:
+{ isTest, attackerCfg, caseDir, mkEscapedCommand }:
 { config, pkgs, lib, modulesPath, ... }:
 
 let
@@ -39,6 +39,7 @@ let
     cp -r ${serverFilePath} $out/exploit
   '';
 
+  # If C server
   serverDerivation = if serverCfg ? build_config && serverCfg.language == "c" then
     pkgs.stdenv.mkDerivation {
       name = "malicious-server";
@@ -55,6 +56,7 @@ let
     }
   else null;
 
+  # If Python server
   pythonVersionPkg = if hasServerConfig && serverCfg.language == "python" then
     if serverCfg ? python_version then
       let
@@ -73,13 +75,33 @@ let
     else pythonVersionPkg
   else null;
 
+  # If shell server
+  requiredPackagesList = if hasServerConfig && serverCfg.language == "shell" && serverCfg ? required_packages then serverCfg.required_packages else [];
+  requiredPackages = map (pkg: pkgs.${pkg}) requiredPackagesList;
+  
+  shellServerWithEnv = if hasServerConfig && serverCfg.language == "shell" && serverCfg ? run_command then
+    let
+      shellEnv = pkgs.buildEnv {
+        name = "shell-server-env";
+        paths = requiredPackages;
+      };
+    in
+      pkgs.writeShellScript "shell-server-inner" ''
+        export PATH="${shellEnv}/bin:$PATH"
+        cd ${serverFiles}/exploit
+        ${serverCfg.run_command}
+      ''
+  else null;
+
+  # Generate a start script for the server 
   startServerScript = if hasServerConfig && serverCfg ? run_command then
     pkgs.writeScriptBin "start-server" ''
     #!${pkgs.bash}/bin/bash
     ${if serverCfg ? run_command then 
-        if serverCfg.language == "c" then "cd ${serverDerivation}/exploit && ./${serverCfg.run_command}" else
-          if serverCfg.language == "python" then "cd ${serverFiles}/exploit && ${modifiedPyPkgs}/bin/${serverCfg.run_command}" else ""
-    else ""} 
+        if serverCfg.language == "c" then "cd ${serverDerivation}/exploit && ./${mkEscapedCommand serverCfg.run_command}" else
+          if serverCfg.language == "python" then "cd ${serverFiles}/exploit && ${modifiedPyPkgs}/bin/${mkEscapedCommand serverCfg.run_command}" else
+            if serverCfg.language == "shell" then "${shellServerWithEnv}" else ""
+    else "" } 
     ''
   else null;
 in
@@ -88,7 +110,9 @@ in
     hostName = "attacker";
     fixedConfig = {
       networking.firewall.allowedTCPPorts = allowedTCPPorts;
-      environment.systemPackages = with pkgs;[ python3 gcc ] ++ (if hasServerConfig then [ startServerScript ] else []);
+      environment.systemPackages = 
+        with pkgs;[ python3 gcc ] 
+        ++ (if hasServerConfig then [ startServerScript ] else []);
       systemd.services = if hasServerConfig then {
         maliciousServer = {
           description = "Malicious Server";

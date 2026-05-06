@@ -1,4 +1,4 @@
-{ isInteractive, isVulnerable, cfg, hasFile, caseDir, clientCfg, curlCfg, enableClient, enableAttacker, attackerCfg, customVmMap, customNodeNames }:
+{ isInteractive, isVulnerable, cfg, hasFile, caseDir, clientCfg, curlCfg, enableClient, enableAttacker, attackerCfg, customVmMap, customNodeNames, mkEscapedCommand }:
 { pkgs, lib, ... }:
 
 let 
@@ -33,7 +33,8 @@ let
           ${
           let
             isServiceWait = 
-              if attackerCfg ? server && attackerCfg.server ? wait_in_test_script 
+              if isInteractive then false
+              else if attackerCfg ? server && attackerCfg.server ? wait_in_test_script 
                 then attackerCfg.server.wait_in_test_script 
               else true;
             service = if isServiceWait then attackerCfg.server.service_name or "maliciousServer" else null;
@@ -67,7 +68,7 @@ in
     }
     // 
     lib.optionalAttrs enableAttacker {
-      attacker = (import ./vm-configs/vm-template-attacker.nix { isTest = true; inherit caseDir attackerCfg; });
+      attacker = (import ./vm-configs/vm-template-attacker.nix { isTest = true; inherit caseDir attackerCfg mkEscapedCommand; });
     }
     // 
     (builtins.listToAttrs (map

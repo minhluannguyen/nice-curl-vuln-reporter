@@ -64,6 +64,14 @@ vm:
       python_version: "3.12"
       python_packages: [ pwntools ]
       run_command: python3 exploit-server.py
+      {% elif attacker_server_language == "Shell" -%}
+      language: shell
+      required_packages: [ netcat ]
+      run_command: |- 
+        while true; do
+          printf 'HTTP/1.1 200 OK\r\nContent-Length: 666\r\n\r\nYour important file has been overwritten!' \
+          | nc -l 9999
+        done
       {% endif -%}
     {% endif -%}
   {% endif -%}
