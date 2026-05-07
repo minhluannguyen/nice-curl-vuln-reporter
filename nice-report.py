@@ -468,7 +468,7 @@ def run_all_tests():
         
         try:
             result = subprocess.run(
-                ["nix", "build", ".#testVulnerableTrue"],
+                ["nix", "run", "--refresh", ".#testVulnerableTrue.driver"],
                 cwd=case_dir,
                 capture_output=True,
                 text=True
