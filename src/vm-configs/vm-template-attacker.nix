@@ -1,4 +1,4 @@
-{ isTest, attackerCfg, caseDir, mkEscapedCommand }:
+{ isTest, attackerCfg, caseDir }:
 { config, pkgs, lib, modulesPath, ... }:
 
 let
@@ -98,8 +98,8 @@ let
     pkgs.writeScriptBin "start-server" ''
     #!${pkgs.bash}/bin/bash
     ${if serverCfg ? run_command then 
-        if serverCfg.language == "c" then "cd ${serverDerivation}/exploit && ./${mkEscapedCommand serverCfg.run_command}" else
-          if serverCfg.language == "python" then "cd ${serverFiles}/exploit && ${modifiedPyPkgs}/bin/${mkEscapedCommand serverCfg.run_command}" else
+        if serverCfg.language == "c" then "cd ${serverDerivation}/exploit && ./${serverCfg.run_command}" else
+          if serverCfg.language == "python" then "cd ${serverFiles}/exploit && ${modifiedPyPkgs}/bin/${serverCfg.run_command}" else
             if serverCfg.language == "bash" then "${shellServerWithEnv}" else ""
     else "" } 
     ''

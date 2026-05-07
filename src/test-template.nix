@@ -1,4 +1,4 @@
-{ isInteractive, isVulnerable, cfg, hasFile, caseDir, clientCfg, curlCfg, enableClient, enableAttacker, attackerCfg, customVmMap, customNodeNames, mkEscapedCommand }:
+{ isInteractive, isVulnerable, cfg, hasFile, caseDir, clientCfg, curlCfg, enableClient, enableAttacker, attackerCfg, customVmMap, customNodeNames }:
 { pkgs, lib, ... }:
 
 let 
@@ -68,7 +68,7 @@ in
     }
     // 
     lib.optionalAttrs enableAttacker {
-      attacker = (import ./vm-configs/vm-template-attacker.nix { isTest = true; inherit caseDir attackerCfg mkEscapedCommand; });
+      attacker = (import ./vm-configs/vm-template-attacker.nix { isTest = true; inherit caseDir attackerCfg; });
     }
     // 
     (builtins.listToAttrs (map

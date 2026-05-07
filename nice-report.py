@@ -435,7 +435,7 @@ def run_single_test(case_dir: Path):
     
     try:
         result = subprocess.run(
-            ["nix", "run", ".#testVulnerableTrue.driver"],
+            ["nix", "run", "--refresh", ".#testVulnerableTrue.driver"],
             cwd=case_dir,
             # capture_output=True,
             text=True
