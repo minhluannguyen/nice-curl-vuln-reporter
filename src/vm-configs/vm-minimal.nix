@@ -1,4 +1,4 @@
-{ isTest, hostName, diskImagePath, isRetrictNetwork ? true }:
+{ isTest, hostName, isRetrictNetwork ? true }:
 { pkgs, lib, modulesPath, ... }:
 
 let
@@ -12,8 +12,6 @@ in
   system.stateVersion = "24.09";
 
   virtualisation.graphics = false;
-
-  virtualisation.diskImage = if diskImagePath != null then "${diskImagePath}" else null;
 
   virtualisation.restrictNetwork = isRetrictNetwork;
 

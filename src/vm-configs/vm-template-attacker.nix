@@ -11,7 +11,6 @@ let
     else null;
   customAttackerConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
 
-  diskImagePath = if attackerCfg ? disk_image_path then "/${attackerCfg.disk_image_path}" else null;
   isRetrictNetwork = 
     if attackerCfg ? internet_access then
       if !(attackerCfg.internet_access == true || attackerCfg.internet_access == false) then
@@ -106,7 +105,7 @@ let
   else null;
 in
   (import ./vm-template-instance.nix {
-    inherit isTest diskImagePath isRetrictNetwork;
+    inherit isTest isRetrictNetwork;
     hostName = "attacker";
     fixedConfig = {
       networking.firewall.allowedTCPPorts = allowedTCPPorts;

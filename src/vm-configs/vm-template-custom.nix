@@ -10,7 +10,6 @@ let
     else null;
   customMachineConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
 
-  diskImagePath = if customMachineCfg ? disk_image_path then "/${customMachineCfg.disk_image_path}" else null;
   isRetrictNetwork = 
     if customMachineCfg ? internet_access then
       if !(customMachineCfg.internet_access == true || customMachineCfg.internet_access == false) then
@@ -28,7 +27,7 @@ let
   allowedTCPPorts = if allowedTCPPortsRaw == null then [] else normalizePorts allowedTCPPortsRaw;
 in
   (import ./vm-template-instance.nix {
-    inherit isTest diskImagePath isRetrictNetwork;
+    inherit isTest isRetrictNetwork;
     hostName = hostname;
     fixedConfig = {
       networking.firewall.allowedTCPPorts = allowedTCPPorts;

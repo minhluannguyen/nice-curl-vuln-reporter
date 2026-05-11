@@ -1,8 +1,8 @@
-{ isTest, hostName, diskImagePath ? null, isRetrictNetwork ? true, fixedConfig, customConfig }:
+{ isTest, hostName, isRetrictNetwork ? true, fixedConfig, customConfig }:
 { config, pkgs, lib, modulesPath, ... }:
 
 let
-  template = (import ./vm-minimal.nix { inherit isTest hostName diskImagePath isRetrictNetwork; }) { inherit pkgs lib modulesPath; };
+  template = (import ./vm-minimal.nix { inherit isTest hostName isRetrictNetwork; }) { inherit pkgs lib modulesPath; };
 
   mergeConfig = a: b:
     if builtins.isAttrs a && builtins.isAttrs b then

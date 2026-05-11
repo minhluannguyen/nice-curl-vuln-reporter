@@ -11,7 +11,6 @@ let
     else null;
   customClientConfig = if effectiveConfigPath != null then import effectiveConfigPath { inherit config pkgs lib; } else {};
 
-  diskImagePath = if clientCfg ? disk_image_path then "/${clientCfg.disk_image_path}" else null;
   isRetrictNetwork = 
     if clientCfg ? internet_access then
       if !(clientCfg.internet_access == true || clientCfg.internet_access == false) then
@@ -123,7 +122,7 @@ let
   '' else null;
 in
   (import ./vm-template-instance.nix {
-    inherit isTest diskImagePath isRetrictNetwork;
+    inherit isTest isRetrictNetwork;
     hostName = "client";
     fixedConfig = {
       environment.systemPackages = [ pkgs.code ] 
