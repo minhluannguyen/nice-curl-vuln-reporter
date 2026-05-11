@@ -49,6 +49,7 @@ assertionCfg:
         machine = assertionMachine;
         file_path = escapeQuotes ap.file_path;
         content = escapeQuotes ap.content;
+        contains = ap.contains or true;
         timeout = ap.timeout or 60;
       }
     else if assertionType == "check-service-log-contains" then

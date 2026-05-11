@@ -50,7 +50,7 @@ check_file_exists(${machine}, "${file_path}", ${if is_present then "True" else "
 
     check-file-contains = {
         definition = ''
-def check_file_contains(machine, file_path, content, timeout):
+def check_file_contains(machine, file_path, content, contains, timeout):
     import inspect
 
     sig = inspect.signature(machine.wait_for_file)
@@ -62,11 +62,15 @@ def check_file_contains(machine, file_path, content, timeout):
 
     stdout = machine.succeed(f"cat {file_path}")
     print(stdout)
-    assert f"{content}" in stdout, f"File {file_path} does not contain expected content: {content}"
+
+    if contains:
+        assert f"{content}" in stdout, f"File {file_path} does not contain expected content: {content}"
+    else:
+        assert f"{content}" not in stdout, f"File {file_path} contains unexpected content: {content}"
         '';
-        call = { machine, file_path, content, timeout ? 60 }: ''
+        call = { machine, file_path, content, contains ? true, timeout ? 60 }: ''
 print("ASSERTION BLOCK: check_file_contains")
-check_file_contains(${machine}, "${file_path}", "${content}", ${toString timeout})
+check_file_contains(${machine}, "${file_path}", "${content}", ${if contains then "True" else "False"}, ${toString timeout})
         '';
     };
 
