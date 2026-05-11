@@ -434,6 +434,10 @@ def run_single_test(case_dir: Path):
     print()
     
     try:
+        subprocess.run(
+            ["nix", "flake", "update"],
+            cwd=case_dir,
+        )
         result = subprocess.run(
             ["nix", "run", "--refresh", ".#testVulnerableTrue.driver"],
             cwd=case_dir,
@@ -467,6 +471,12 @@ def run_all_tests():
         info(f"Testing: {case_name}")
         
         try:
+            subprocess.run(
+                ["nix", "flake", "update"],
+                cwd=case_dir,
+                capture_output=True,
+                text=True
+            )
             result = subprocess.run(
                 ["nix", "run", "--refresh", ".#testVulnerableTrue.driver"],
                 cwd=case_dir,
