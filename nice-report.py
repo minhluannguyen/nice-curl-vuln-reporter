@@ -453,8 +453,8 @@ def run_single_test(case_dir: Path):
     except Exception as e:
         error(f"Error running test: {e}")
     
-    print()
-
+    print("\nPress Enter to return to menu...")
+    input()
 
 def run_all_tests():
     """Run tests for all cases"""
@@ -500,6 +500,8 @@ def run_all_tests():
     print(f"{RED}Failed: {failed}{NC}")
     print(f"{BLUE}═════════════════════════════════════════{NC}")
 
+    print("\nPress Enter to return to menu...")
+    input()
 
 def run_tests():
     """Run tests menu"""
