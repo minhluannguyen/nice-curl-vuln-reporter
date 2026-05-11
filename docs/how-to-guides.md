@@ -69,7 +69,7 @@ vm:
             allowed_tcp_ports: [ <port1>, <port2>, ... ] # or just <port> if only one port is needed
 ```
 
-- You can specify the `server` field to set up a dedicated attacker server. Only `C` and `Python` servers are supported in the current version. You can put the exploit source code in the `exploit/server/` directory and specify the build and run commands and configuration in the `report.yaml` file. An example of a simple C server from [CVE-2023-38039](../reports/cve-2023-38039-curl-no-large-headers-limit-oom/report.yaml):
+- You can specify the `server` field to set up a dedicated attacker server. Only `C`, `Python` and `Bash` servers are supported in the current version. You can put the exploit source code in the `exploit/server/` directory and specify the build and run commands and configuration in the `report.yaml` file. An example of a simple C server from [CVE-2023-38039](../reports/cve-2023-38039-curl-no-large-headers-limit-oom/report.yaml):
 
 ```yaml
 ...
@@ -93,6 +93,48 @@ An Python server example of [CVE-2025-5399](../reports/cve-2025-5399-curl-ws-loo
         python_packages: [ pwntools ]
         run_command: python3 exploit-server.py
 ```
+
+Or a Bash server. Note that any required packages should be installed by adding them to the `required_packages` field, you can find the available packages in NixOS [package search](https://search.nixos.org/packages):
+
+```yaml
+...
+    server:
+      language: bash
+      required_packages: [ netcat ]
+      run_command: |- 
+        while true; do
+          printf 'HTTP/1.1 200 OK\r\nContent-Length: 666\r\n\r\nYour important file has been overwritten!' \
+          | nc -l 9999
+        done
+```
+
+### 3. Custom VMs
+
+If the predefined `client` and `attacker` VMs are not enough to simulate the environment needed for the vulnerability, you can also define custom VMs under the `custom_vms` field. See the [YAML documentation](./documentation.md) for the full configuration options for custom VMs. 
+
+### 4. The exploit code
+
+The actual exploit code (e.g. the malicious server, the vulnerable client application, or any other code needed to trigger the vulnerability) should be placed in the `exploit/` directory. You can organize the code as you like, but it is recommended to follow the typical structure below for better readability and maintainability.
+
+#### Typical structure
+
+```
+exploit/
+  server/
+    server.py          # Python malicious HTTP/FTP/POP3/… server
+    server.c           # C program implementing a custom malicious server
+    server.sh          # Shell script implementing a custom malicious server
+  client/
+    client.c           # C program using libcurl
+```
+
+- If the exploit requires external Python packages, declare them in the `python_packages` field of the attacker's server configuration in the report YAML file. For example:
+```yaml
+attacker:
+  server:
+    python_packages: [ "flask", "requests" ]
+```
+
 
 ### Exploit the vulnerability in interactive mode
 
