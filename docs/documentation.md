@@ -196,25 +196,28 @@ The custom VM configuration allows both receiving and sending traffic, so it spe
 ## Test script block
 
 ```yaml
-test_script_path: test-script.py
-# or
-test_script:
-  - wait:
-      machine: attacker
-      type: port
-      port: 8080
-  - run:
-      machine: client
-      command: curl http://attacker:8080
-      timeout: 60
-  - assert:
-      type: check-file-contains
-      machine: client
-      params:
-        file_path: /var/log/server.log
-        content: "Error occurred"
+test:
+  repeats: 3 # optional, default is 1. Number of times to repeat the test script until the test is successful or all iterations are completed. 
+  test_script_path: test-script.py
+  # or
+  test_script:
+    - wait:
+        machine: attacker
+        type: port
+        port: 8080
+    - run:
+        machine: client
+        command: curl http://attacker:8080
+        timeout: 60
+    - assert:
+        type: check-file-contains
+        machine: client
+        params:
+          file_path: /var/log/server.log
+          content: "Error occurred"
 ```
 
+- `repeats` is an optional field that specifies how many times to repeat the test script until the test is successful or all iterations are completed. This is useful for non-deterministic vulnerabilities (e.g., timing or race conditions).
 - `test_script_path` is an optional field that overrides the `test_script` block with a custom test script located at the specified path. You can only decide to use either `test_script_path` or `test_script`, but not both.
 - The `test_script` block defines the steps to validate the vulnerability. Each step is an action that can be either `wait`, `run`, or `assert`:
   - `wait` allows waiting for a certain condition to be met before proceeding to the next step. Types of wait actions:

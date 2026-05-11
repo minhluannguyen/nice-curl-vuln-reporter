@@ -2,12 +2,14 @@
 { pkgs, lib, ... }:
 
 let 
-  testScriptPath = if cfg ? test_script_path then cfg.test_script_path else null;
-  testScriptYaml = if cfg ? test_script then cfg.test_script else null;
+  testCfg = if cfg ? test then cfg.test else 
+    throw "No test configuration provided in report.";
+  testScriptPath = if testCfg ? test_script_path then testCfg.test_script_path else null;
+  testScriptYaml = if testCfg ? test_script then testCfg.test_script else null;
   
   mkYAML2Test = import ./nice-yaml2test.nix { inherit lib; };
   
-  testScript = 
+  userTestScript = 
     if testScriptPath != null then
       if testScriptYaml != null then
         throw "Only one of 'test_script_path' or 'test_script' can be specified."
@@ -59,6 +61,41 @@ let
     (if enableClient then "client.wait_for_unit(\"multi-user.target\")" else "")
     defaultCustomVMBlock
   ];
+
+  repeats = if testCfg ? repeats then testCfg.repeats else 1;
+
+  repeatableTestBlock = lib.concatStringsSep "\n" ([
+    "start_all()"
+    defaultWaitBlock
+  ] ++ (if !isInteractive then [ userTestScript ] else [])
+    ++ (if isInteractive then [ "print(\"INTERACTIVE MODE SETUP COMPLETE. READY FOR INTERACTIVE TESTING.\")" ] else [])
+  );
+
+  shutdownBlock = ''
+for machine in machines:
+  machine.shutdown()
+'';
+
+  # Indent blocks so they sit correctly inside the Python for-loop
+  repeatableTestBlockRetryIndented = "        " + lib.replaceStrings ["\n"] ["\n        "] repeatableTestBlock;
+  shutdownBlockRetryIndented = "        " + lib.replaceStrings ["\n"] ["\n        "] shutdownBlock;
+
+  testScript = if repeats > 1 && !isInteractive then
+    ''
+attempt = 1
+while attempt <= ${toString repeats}:
+    print(f"Starting test attempt {attempt}...")
+    try:
+${repeatableTestBlockRetryIndented}
+        print(f"Test attempt {attempt} succeeded.")
+        break
+    except Exception as exc:
+        print(f"Test attempt {attempt} failed: {exc}")
+${shutdownBlockRetryIndented}
+        attempt += 1
+        assert attempt <= ${toString repeats}, "All test attempts failed after ${toString repeats} retries."
+    '' 
+  else repeatableTestBlock;
 in
   pkgs.testers.runNixOSTest {
     name = "${cfg.cve_id}-${cfg.title}-${if isVulnerable then "vulnerable" else "non-vulnerable"}-test";
@@ -80,10 +117,5 @@ in
 
     sshBackdoor.enable = if isInteractive then true else false;
 
-    testScript = lib.concatStringsSep "\n" ([
-      "start_all()"
-      defaultWaitBlock
-    ] ++ (if !isInteractive then [ testScript ] else [])
-      ++ (if isInteractive then [ "print(\"INTERACTIVE MODE SETUP COMPLETE. READY FOR INTERACTIVE TESTING.\")" ] else [])
-    );
+    testScript = testScript;
   }

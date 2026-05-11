@@ -86,30 +86,32 @@ vm:
   {% endif %}
 
 # Defaults to `./test-script.py` if not specified.
-# test_script_path: ./test-scripts/test-script.py
-test_script:
-  # - wait:
-  #     machine: attacker
-  #     type: port
-  #     port: 8080
-  # - run:
-  #     machine: client
-  #     expected_status: failure
-  #     expected_exit_codes: [ 134, 1 ]
-  #     command: curl http://attacker:8080
-  #     timeout: 60
-  # - assert:
-  #     name: check-file-contains
-  #     machine: client
-  #     params:
-  #       file_path: /var/log/server.log
-  #       content: "Error occurred"
-  # - assert:
-  #     name: check-memory-usage-high
-  #     machine: client
-  #     params:
-        # command: curl http://attacker:8080
-        # maximum_memory_bytes: 536870912
+test:
+  # repeats: 1 # number of times to repeat the test script (for flaky vulnerabilities). Default is 1.
+  # test_script_path: ./test-script.py
+  test_script:
+    # - wait:
+    #     machine: attacker
+    #     type: port
+    #     port: 8080
+    # - run:
+    #     machine: client
+    #     expected_status: failure
+    #     expected_exit_codes: [ 134, 1 ]
+    #     command: curl http://attacker:8080
+    #     timeout: 60
+    # - assert:
+    #     name: check-file-contains
+    #     machine: client
+    #     params:
+    #       file_path: /var/log/server.log
+    #       content: "Error occurred"
+    # - assert:
+    #     name: check-memory-usage-high
+    #     machine: client
+    #     params:
+    #       command: curl http://attacker:8080
+    #       maximum_memory_bytes: 536870912
 
 # Metadata for CVE report
 meta:
