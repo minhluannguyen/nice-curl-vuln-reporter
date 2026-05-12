@@ -52,7 +52,7 @@ nix run
 
 If you already have available reports to work with, within the same directory containing the `reports/` folder, run:
 ```bash
-nix run 'gitlab:minh-luan.nguyen/nice-curl-vuln-report/master?host=gitlab.telecom-paris.fr'
+nix run 'github:minhluannguyen/nice-curl-vuln-reporter'
 ```
 
 *Note*: Add the `--refresh` flag to the `nix run` command if you want to make sure you are running the latest version on the `master` branch.
