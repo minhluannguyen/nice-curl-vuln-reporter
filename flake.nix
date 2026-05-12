@@ -25,9 +25,8 @@
             pexpect
           ]);
 
-          runtimeInputs = with pkgs;[ packagedPython terminator openssh nix ];
-
           nice-report = pkgs.writeShellScriptBin "nice-report" ''
+            export PATH=${pkgs.nix}/bin:${pkgs.terminator}/bin:${pkgs.openssh}/bin:$PATH
             exec ${packagedPython}/bin/python ${self}/nice-report.py "$@"
           '';
         in

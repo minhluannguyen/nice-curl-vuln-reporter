@@ -631,7 +631,7 @@ def start_scenario():
         time.sleep(2)  # Give some time for the child process to set up before launching terminator
         
         subprocess.Popen(
-            ["nix-shell", "-p", "terminator", "openssh", "--run", full_cmd],
+            ["bash", "-c", full_cmd],
             cwd=case_dir,
         )
 
