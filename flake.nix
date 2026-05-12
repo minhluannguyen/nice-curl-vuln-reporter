@@ -23,6 +23,7 @@
             jinja2
             pyyaml
             pexpect
+            ruamel-yaml
           ]);
 
           nice-report = pkgs.writeShellScriptBin "nice-report" ''

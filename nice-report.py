@@ -17,6 +17,7 @@ import yaml
 import pexpect
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from ruamel.yaml import YAML
 
 # ANSI color codes
 RED = '\033[0;31m'
@@ -282,7 +283,7 @@ def create_security_report():
     print()
     show_main_menu()
 
-def calculate_sha256_src(source_url: str, original_content: str) -> str:
+def calculate_sha256_src(source_url: str) -> str:
     try:
         result = subprocess.run(
             ["nix-prefetch-url", source_url],
@@ -304,9 +305,7 @@ def calculate_sha256_src(source_url: str, original_content: str) -> str:
                 vuln_hash = result.stdout.strip()
                 success(f"Converted hash to SRI: {vuln_hash}")
                 
-                # Replace hash line in the original content
-                content = original_content
-                content = re.sub(r'(\s+hash:)\s+.*', rf'\1 {vuln_hash}', content)
+                return vuln_hash
             else:
                 error(f"Failed to convert hash: {result.stderr}")
         else:
@@ -314,21 +313,26 @@ def calculate_sha256_src(source_url: str, original_content: str) -> str:
     except FileNotFoundError:
         error("nix-prefetch-url or nix command not found")
 
-    return content
+    return ""
 
 def update_single_hash(case_dir: Path, update_target: str):
     """Update hashes for a single case"""
     report_yaml = case_dir / "report.yaml"
     
+    # Check if report.yaml exists
     if not report_yaml.exists():
         error(f"report.yaml not found in {case_dir}")
     
     info(f"Computing tarball hashes for: {case_dir.name}")
     print()
     
-    # Parse YAML file to extract strategy and version
+    # Parse YAML file using ruamel.yaml to preserve formatting
+    yml = YAML()
+    yml.preserve_quotes = True
+    yml.default_flow_style = False
+    
     with open(report_yaml, 'r') as f:
-        data = yaml.safe_load(f)
+        data = yml.load(f)
     
     if not data or 'curl' not in data:
         error("Could not parse curl configuration from report.yaml")
@@ -347,25 +351,18 @@ def update_single_hash(case_dir: Path, update_target: str):
     
     if "Version" in update_target:
         info(f"Vulnerable version: {vulnerable_version}")
-    
-    # Read the original file as text
-    with open(report_yaml, 'r') as f:
-        original_content = f.read()
-    
+        
     if strategy == "nixpkgs":
 
         if "Version" in update_target:
             # Fetch commit hash for nixpkgs strategy
-            # vuln_commit = fetch_commit_lazamar(vulnerable_version)
             vuln_commit = fetch_commit_for_version(vulnerable_version)
             if not vuln_commit:
                 warning(f"Could not fetch commit hash for version {vulnerable_version}, please change to a different version")
                 return
         elif "Commit hash" in update_target:
-            match = re.search(r'commit:\s+([a-f0-9]{40})', original_content)
-            if match:
-                vuln_commit = match.group(1)
-            else:
+            vuln_commit = package.get('commit')
+            if not vuln_commit:
                 error("Could not extract existing commit hash from report.yaml")
         
         info("Computing vulnerable version hash...")
@@ -373,14 +370,12 @@ def update_single_hash(case_dir: Path, update_target: str):
         vuln_hash = "sha256:" + hash_raw if hash_raw else ""
         success(f"Vulnerable hash: {vuln_hash}")
         
-        # Replace commit and sha256 lines in the original content
-        content = original_content
-        content = re.sub(r'(\s+commit:)\s+.*', rf'\1 {vuln_commit}', content)
-        content = re.sub(r'(\s+sha256:)\s+.*', rf'\1 {vuln_hash}', content)
+        # Update data dict with new values
+        data['curl']['package']['commit'] = vuln_commit
+        data['curl']['package']['sha256'] = vuln_hash
         
     elif strategy == "source":
         # For source strategy, compute hash and convert to SRI format
-        # Get the URL from the package config
         source_url = package.get('url')
         if not source_url:
             error("Could not extract source URL from report.yaml")
@@ -388,13 +383,14 @@ def update_single_hash(case_dir: Path, update_target: str):
         info(f"Computing source hash for {source_url}...")
         
         # Fetch the source and compute hash
-        content = calculate_sha256_src(source_url, original_content)
+        sha256_hash = calculate_sha256_src(source_url)
+        data['curl']['package']['hash'] = sha256_hash
     
     info("Updating report.yaml with new hashes...")
     
-    # Write back the modified content
+    # Write back the modified YAML while preserving formatting
     with open(report_yaml, 'w') as f:
-        f.write(content)
+        yml.dump(data, f)
     
     success("Hashes saved to report.yaml")
     print()
@@ -779,3 +775,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
