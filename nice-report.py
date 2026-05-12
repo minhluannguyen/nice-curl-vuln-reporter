@@ -422,6 +422,64 @@ def update_hashes():
     update_single_hash(case_dir, update_target)
     show_main_menu()
 
+def update_flake_case(case_dir: Path):
+    """Update nix flake for a single case"""
+    info(f"Updating nix flake for: {case_dir.name}")
+    print()
+    
+    try:
+        result = subprocess.run(
+            ["nix", "flake", "update"],
+            cwd=case_dir,
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            success(f"Flake updated successfully: {case_dir.name}")
+        else:
+            warning(f"Failed to update flake: {case_dir.name}")
+            print(result.stderr[-500:] if result.stderr else result.stdout[-500:])
+    except Exception as e:
+        error(f"Error updating flake: {e}")
+    
+
+def update_all_flakes():
+    """Update nix flakes for all cases"""
+    info("Updating nix flakes for all cases...")
+    print()
+    
+    cases = sorted([d for d in REPORT_DIR.iterdir() if d.is_dir()])
+    
+    for case_dir in cases:
+        update_flake_case(case_dir)
+    
+    print("\nPress Enter to return to menu...")
+    input()
+
+def update_flakes():
+    """Update nix flakes for existing cases"""
+    info("Updating nix flakes for existing cases...")
+    print()
+    
+    cases = sorted([d.name for d in REPORT_DIR.iterdir() if d.is_dir()])
+    
+    if not cases:
+        error("No report cases found")
+    
+    cases.extend(["All cases", "Cancel"])
+    selected = select_menu("Select security report:", cases)
+    
+    if selected == "Cancel":
+        show_main_menu()
+        return
+    
+    if selected == "All cases":
+        update_all_flakes()
+    else:
+        case_dir = REPORT_DIR / selected
+        update_flake_case(case_dir)
+    show_main_menu()
 
 def run_single_test(case_dir: Path):
     """Run test for a single case"""
@@ -430,10 +488,6 @@ def run_single_test(case_dir: Path):
     print()
     
     try:
-        subprocess.run(
-            ["nix", "flake", "update"],
-            cwd=case_dir,
-        )
         result = subprocess.run(
             ["nix", "run", "--refresh", ".#testVulnerableTrue.driver"],
             cwd=case_dir,
@@ -467,12 +521,6 @@ def run_all_tests():
         info(f"Testing: {case_name}")
         
         try:
-            subprocess.run(
-                ["nix", "flake", "update"],
-                cwd=case_dir,
-                capture_output=True,
-                text=True
-            )
             result = subprocess.run(
                 ["nix", "run", "--refresh", ".#testVulnerableTrue.driver"],
                 cwd=case_dir,
@@ -733,7 +781,7 @@ def show_main_menu():
         [
             "Create new security report",
             "Update hashes for existing report",
-            # "Manage VMs",
+            "Update nix flakes for existing report",
             "Start interactive scenario",
             "Run tests",
             "Exit"
@@ -744,8 +792,8 @@ def show_main_menu():
         create_security_report()
     elif choice == "Update hashes for existing report":
         update_hashes()
-    # elif choice == "Manage VMs":
-    #     manage_vms()
+    elif choice == "Update nix flakes for existing report":
+        update_flakes()
     elif choice == "Start interactive scenario":
         start_scenario()
     elif choice == "Run tests":
@@ -759,16 +807,6 @@ def main():
     if not REPORT_DIR.exists():
         warning(f"Report directory not found, creating: {REPORT_DIR}")
         REPORT_DIR.mkdir(parents=True)
-    
-    # Try to add files to git
-    # try:
-    #     subprocess.run(
-    #         ["git", "add", "."],
-    #         cwd=SCRIPT_DIR,
-    #         capture_output=True
-    #     )
-    # except Exception:
-    #     pass
     
     show_main_menu()
 
