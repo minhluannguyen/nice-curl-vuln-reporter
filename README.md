@@ -109,3 +109,7 @@ nix run .#testVulnerableTrue.driver
 # For interactive mode
 nix run .#testVulnerableTrue.driverInteractive
 ```
+
+## Example reports
+
+All example reports are located in the `reports/` directory. Each case is organized in its own subdirectory, named after the CVE it represents. A summary of the reproduced curl vulnerability is provided [here](./reports/README.md).
