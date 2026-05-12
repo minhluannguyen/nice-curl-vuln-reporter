@@ -57,19 +57,6 @@ nix run 'github:minhluannguyen/nice-curl-vuln-reporter'
 
 *Note*: Add the `--refresh` flag to the `nix run` command if you want to make sure you are running the latest version on the `master` branch.
 
-### 2. Install dependencies and set up the environment. (deprecated)
-
-You can install the required dependencies using the following command:
-
-```bash
-# Directly install with pip
-pip install -r requirements.txt
-# Or create a virtual environment and install dependencies
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
 ### 2. Functionality:
 
 ```bash
