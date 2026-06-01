@@ -70,9 +70,9 @@ jobs:
             --option allow-import-from-derivation true \
             --override-input curlCveLib "path:${GITHUB_WORKSPACE}/src"
 
-      - name: Build vulnerable test
+      - name: Build and run vulnerable test
         run: |
-          nix build "./${{ matrix.report }}#testVulnerableTrue" \
+          nix run "./${{ matrix.report }}#testVulnerableTrue.driver" \
             --print-build-logs \
             --no-write-lock-file \
             --option allow-import-from-derivation true \
