@@ -24,6 +24,7 @@
             pyyaml
             pexpect
             ruamel-yaml
+            questionary
           ]);
 
           nice-report = pkgs.writeShellScriptBin "nice-report" ''

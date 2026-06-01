@@ -18,7 +18,7 @@ curl:
     commit: {{curl_nixpkgs_commit_hash}}
     sha256: {{curl_nixpkgs_commit_sha256}}
     {% elif curl_strategy == "source" -%}
-    # For build from source strategy
+    # For build from source strategy, check https://curl.se/download/
     url: <url-to-source-archive>
     hash: <hash>
     # extra_configure_flags: []

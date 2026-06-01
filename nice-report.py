@@ -15,6 +15,7 @@ import urllib.request
 import time
 import yaml
 import pexpect
+import questionary
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ruamel.yaml import YAML
@@ -173,7 +174,7 @@ def fetch_commit_from_csv(curl_version: str) -> str:
         warning(f"Error reading CSV database: {e}")
         return ""
     
-    warning(f"CSV database did not have an entry for curl {curl_version}")
+    warning(f"Nixpkgs did not have an entry for curl {curl_version}")
     return ""
 
 
@@ -198,6 +199,60 @@ def fetch_commit_for_version(curl_version: str) -> str:
     
     return ""
 
+def check_and_suggest_curl_version(strategy: str) -> str:
+    """Check if the provided curl version is valid and suggest alternatives if not"""
+
+    # Check if the version is in the right format
+
+    curl_version = questionary.text(
+        "Enter vulnerable curl version (e.g., 8.4.0 or latest):",
+        validate=lambda text: bool(re.match(r'^\d+\.\d+\.\d+$', text) or text == "latest") or "Please enter a valid version (e.g., 8.4.0 or latest)",
+        qmark="❓",
+    ).ask()
+
+    if strategy == "Build from source" or curl_version == "latest":
+        return curl_version
+    
+    # Suggest alternatives based on CSV database
+    csv_path = LIBRARY_DIR / "curl_nixpkgs_versions.csv"
+    version_list = []
+    
+    try:
+        if csv_path.exists():
+            with open(csv_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('curl_version'):
+                        continue  # Skip empty lines and header
+                    parts = [p.strip() for p in line.split(',')]
+                    if len(parts) >= 3 and parts[2]:  # Ensure there's a commit hash
+                        if curl_version == parts[0]:
+                            return curl_version  # Exact match found, return immediately
+                        version_list.append(parts[0])
+    except Exception as e:
+        warning(f"Error reading CSV database: {e}")
+
+    warning(f"Version {curl_version} not found in Nixpkgs. Suggesting alternatives...")
+    
+    suggestions = []
+    if version_list:
+        id = version_list.index(curl_version) + 1 if curl_version in version_list else 3
+        for j in range(3):
+            if id + j < len(version_list):
+                suggestions.append(version_list[id + j])
+            if id - j - 2 >= 0:
+                suggestions.append(version_list[id - j - 2])
+
+        sorted_suggestions = sorted(suggestions, key=lambda v: (v != curl_version, v), reverse=True)
+        sorted_suggestions.append("Build from source")
+        choice = questionary.select(
+            message="Here are some additional curl versions available in Nixpkgs:",
+            choices=sorted_suggestions,
+            pointer="→",
+            qmark="❓",
+        ).ask()
+    
+    return choice if choice else curl_version
 
 def create_security_report():
     """Create a new security report"""
@@ -205,15 +260,16 @@ def create_security_report():
     print()
     
     title = prompt("Enter short title", "curl-vulnerability")
-    vulnerable_version = prompt("Enter vulnerable curl version", "latest")
-    
     strategy = select_menu("Curl build strategy?", ["Fetch from nixpkgs", "Build from source"], default=1)
-    target = select_menu("Select curl package to target:", ["tool", "library"], default=1)
-    attack_pattern = select_menu("Select attack pattern:", ["remote", "local", "other"], default=1)
     
+    vulnerable_version = ""
     vuln_commit = ""
     vuln_hash = ""
     
+    vulnerable_version = check_and_suggest_curl_version(strategy)
+    if vulnerable_version == "Build from source":
+        strategy = "Build from source"
+        vulnerable_version = ""
     if strategy == "Fetch from nixpkgs":
         vuln_commit = fetch_commit_for_version(vulnerable_version)
         if vuln_commit:
@@ -226,6 +282,8 @@ def create_security_report():
         vuln_commit = "<NIXPKGS_COMMIT_HASH>"
         vuln_hash = ""
     
+    target = select_menu("Select curl package to target:", ["tool", "library"], default=1)
+    attack_pattern = select_menu("Select attack pattern:", ["remote", "local", "other"], default=1)
     if attack_pattern == "remote":
         is_attacker_server = select_menu("Is an attacker server needed for this vulnerability?", ["Yes", "No"], default=1) == "Yes"
     else:
