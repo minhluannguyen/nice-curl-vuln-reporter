@@ -199,7 +199,7 @@ def fetch_commit_for_version(curl_version: str) -> str:
     
     return ""
 
-def check_and_suggest_curl_version() -> str:
+def check_and_suggest_curl_version(strategy: str) -> str:
     """Check if the provided curl version is valid and suggest alternatives if not"""
 
     # Check if the version is in the right format
@@ -209,6 +209,9 @@ def check_and_suggest_curl_version() -> str:
         validate=lambda text: bool(re.match(r'^\d+\.\d+\.\d+$', text) or text == "latest") or "Please enter a valid version (e.g., 8.4.0 or latest)",
         qmark="❓",
     ).ask()
+
+    if strategy == "Build from source" or curl_version == "latest":
+        return curl_version
     
     # Suggest alternatives based on CSV database
     csv_path = LIBRARY_DIR / "curl_nixpkgs_versions.csv"
@@ -239,7 +242,9 @@ def check_and_suggest_curl_version() -> str:
                 suggestions.append(version_list[id + j])
             if id - j - 2 >= 0:
                 suggestions.append(version_list[id - j - 2])
-        sorted_suggestions = sorted(set(suggestions), key=lambda v: list(map(int, v.split('.'))))
+
+        sorted_suggestions = sorted(suggestions, key=lambda v: (v != curl_version, v), reverse=True)
+        sorted_suggestions.append("Build from source")
         choice = questionary.select(
             message="Here are some additional curl versions available in Nixpkgs:",
             choices=sorted_suggestions,
@@ -255,15 +260,16 @@ def create_security_report():
     print()
     
     title = prompt("Enter short title", "curl-vulnerability")
-    vulnerable_version = check_and_suggest_curl_version()
-    
     strategy = select_menu("Curl build strategy?", ["Fetch from nixpkgs", "Build from source"], default=1)
-    target = select_menu("Select curl package to target:", ["tool", "library"], default=1)
-    attack_pattern = select_menu("Select attack pattern:", ["remote", "local", "other"], default=1)
     
+    vulnerable_version = ""
     vuln_commit = ""
     vuln_hash = ""
     
+    vulnerable_version = check_and_suggest_curl_version(strategy)
+    if vulnerable_version == "Build from source":
+        strategy = "Build from source"
+        vulnerable_version = ""
     if strategy == "Fetch from nixpkgs":
         vuln_commit = fetch_commit_for_version(vulnerable_version)
         if vuln_commit:
@@ -276,6 +282,8 @@ def create_security_report():
         vuln_commit = "<NIXPKGS_COMMIT_HASH>"
         vuln_hash = ""
     
+    target = select_menu("Select curl package to target:", ["tool", "library"], default=1)
+    attack_pattern = select_menu("Select attack pattern:", ["remote", "local", "other"], default=1)
     if attack_pattern == "remote":
         is_attacker_server = select_menu("Is an attacker server needed for this vulnerability?", ["Yes", "No"], default=1) == "Yes"
     else:
