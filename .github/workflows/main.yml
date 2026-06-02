@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   discover-reports:
@@ -52,15 +53,18 @@ jobs:
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
+        # with:
+        #   extra_nix_config: |
+        #     experimental-features = nix-command flakes
 
-      - name: Enable KVM access when available
-        run: |
-          if [ -e /dev/kvm ]; then
-            sudo chmod 666 /dev/kvm
-          fi
+      - name: Cache Nix store paths
+        uses: DeterminateSystems/magic-nix-cache-action@v14
+
+      # - name: Enable KVM access when available
+      #   run: |
+      #     if [ -e /dev/kvm ]; then
+      #       sudo chmod 666 /dev/kvm
+      #     fi
 
       - name: Evaluate interactive scenario target
         run: |
