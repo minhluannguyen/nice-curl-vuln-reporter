@@ -1,0 +1,77 @@
+name: Report tests
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  discover-reports:
+    name: Discover report flakes
+    runs-on: ubuntu-latest
+    outputs:
+      reports: ${{ steps.reports.outputs.reports }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Collect reports
+        id: reports
+        run: |
+          reports="$(python - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = sorted(
+              str(path.parent)
+              for path in Path("reports").glob("*/flake.nix")
+              if (path.parent / "report.yaml").exists()
+          )
+          print(json.dumps(paths))
+          PY
+          )"
+          echo "reports=${reports}" >> "${GITHUB_OUTPUT}"
+
+  report-tests:
+    name: ${{ matrix.report }}
+    needs:
+      - discover-reports
+    if: ${{ needs.discover-reports.outputs.reports != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        report: ${{ fromJson(needs.discover-reports.outputs.reports) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Use Cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: nice-curl-vuln-reporter
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Build interactive scenario
+        run: |
+          nix build "./${{ matrix.report }}#startScenario.driverInteractive" \
+            --print-build-logs \
+            --no-write-lock-file \
+            --option allow-import-from-derivation true \
+            --override-input curlCveLib "path:${GITHUB_WORKSPACE}/src"
+
+      - name: Build and run vulnerable test
+        run: |
+          nix run "./${{ matrix.report }}#testVulnerableTrue.driver" \
+            --print-build-logs \
+            --no-write-lock-file \
+            --option allow-import-from-derivation true \
+            --override-input curlCveLib "path:${GITHUB_WORKSPACE}/src"
